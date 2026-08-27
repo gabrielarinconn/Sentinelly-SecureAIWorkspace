@@ -21,7 +21,7 @@ Estado: ⬜ pendiente · 🟡 implementado/no demostrado · 🟢 demostrado
 | R12 | Realtime (post-COMMIT) | backend/infrastructure/realtime.py, presentation/api.py | 🟢 | tests/test_fase7_realtime.py (6 tests: broadcast, orden commit-then-publish, non-member rechazado, token inválido rechazado) |
 | R13 | Soft delete + historial | rw_message_history + database/triggers/0001_messages_audit.sql | 🟢 | tests/test_fase6_messages_audit.py (audit trail, physical DELETE blocked, deleted message immutable) |
 | R14 | i18n (ES/EN, sin strings hardcoded) | frontend/i18n/ | ⬜ | |
-| R15 | JWT + refresh + rotation + reuse detection | auth module | ⬜ | |
+| R15 | JWT + refresh + rotation + reuse detection | backend/application/{refresh_token,issue_refresh_token,logout}.py | 🟢 | tests/test_fase15_refresh_tokens.py (rotación, reuse detection revoca cadena completa, logout) |
 | R16 | Clean Architecture (dominio sin FastAPI/driver/SDK) | backend/domain/, backend/application/ | 🟢 | tests/test_fase13_clean_architecture.py (chequeo estático de imports, AST) |
 | R17 | SOLID / patrón justificado | DECISIONS.md (D010) | 🟢 | Strategy (providers) + Repository (persistencia), justificados con el problema real que resuelven |
 | R18 | Test: non-member denegado | tests/ | 🟢 | tests/test_fase4_rls_jwt.py, tests/test_fase5_channel_acl.py, tests/test_fase6_messages_audit.py |

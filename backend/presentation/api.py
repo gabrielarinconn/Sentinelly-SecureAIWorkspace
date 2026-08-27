@@ -7,14 +7,18 @@ from pydantic import BaseModel
 from backend.application.cursor import encode_cursor
 from backend.application.get_channel_messages import GetChannelMessagesUseCase
 from backend.application.get_current_user import GetCurrentUserUseCase
+from backend.application.issue_refresh_token import IssueRefreshTokenUseCase
 from backend.application.list_channels import ListChannelsUseCase
 from backend.application.login import LoginUseCase
+from backend.application.logout import LogoutUseCase
+from backend.application.refresh_token import RefreshTokenUseCase
 from backend.application.search_messages import SearchMessagesUseCase
 from backend.application.send_message import SendMessageUseCase
 from backend.domain.errors import (
     EmptyMessageError,
     EmptySearchQueryError,
     InvalidCredentialsError,
+    InvalidRefreshTokenError,
     InvalidTokenError,
     MessageAccessDeniedError,
 )
@@ -24,6 +28,7 @@ from backend.infrastructure.jwt_service import JwtTokenService
 from backend.infrastructure.message_repository import PsycopgMessageRepository
 from backend.infrastructure.password_hasher import BcryptPasswordHasher
 from backend.infrastructure.realtime import broadcaster
+from backend.infrastructure.refresh_token_repository import PsycopgRefreshTokenRepository
 from backend.infrastructure.user_repository import PsycopgUserRepository
 from backend.presentation.auth import get_current_user_id, user_id_from_ws_token
 
@@ -35,14 +40,14 @@ class LoginRequest(BaseModel):
     password: str
 
 
-class LoginResponse(BaseModel):
+class TokenPairResponse(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str
 
 
-@app.post("/auth/login", response_model=LoginResponse)
-def login(body: LoginRequest) -> LoginResponse:
-    """Login mínimo (Fase 4). Sin refresh token todavía — eso llega en la Fase 15."""
+@app.post("/auth/login", response_model=TokenPairResponse)
+def login(body: LoginRequest) -> TokenPairResponse:
     conn = get_app_connection()
     try:
         use_case = LoginUseCase(
@@ -54,9 +59,44 @@ def login(body: LoginRequest) -> LoginResponse:
             result = use_case.execute(body.email, body.password)
         except InvalidCredentialsError as exc:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+        refresh_token = IssueRefreshTokenUseCase(PsycopgRefreshTokenRepository(conn)).execute(result.user_id)
+        conn.commit()
     finally:
         conn.close()
-    return LoginResponse(access_token=result.access_token, token_type=result.token_type)
+    return TokenPairResponse(access_token=result.access_token, refresh_token=refresh_token, token_type=result.token_type)
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+@app.post("/auth/refresh", response_model=TokenPairResponse)
+def refresh(body: RefreshRequest) -> TokenPairResponse:
+    conn = get_app_connection()
+    try:
+        try:
+            result = RefreshTokenUseCase(PsycopgRefreshTokenRepository(conn), JwtTokenService()).execute(body.refresh_token)
+            conn.commit()
+        except InvalidRefreshTokenError as exc:
+            conn.commit()  # persiste la revocación en cascada de reuse detection, si aplicó
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+    finally:
+        conn.close()
+    return TokenPairResponse(access_token=result.access_token, refresh_token=result.refresh_token, token_type=result.token_type)
+
+
+class LogoutRequest(BaseModel):
+    refresh_token: str
+
+
+@app.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout(body: LogoutRequest) -> None:
+    conn = get_app_connection()
+    try:
+        LogoutUseCase(PsycopgRefreshTokenRepository(conn)).execute(body.refresh_token)
+        conn.commit()
+    finally:
+        conn.close()
 
 
 class SendMessageRequest(BaseModel):

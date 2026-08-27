@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Optional
 
-from backend.domain.entities import Conversation, Message, SearchResult, User
+from backend.domain.entities import Conversation, Message, RefreshTokenRecord, SearchResult, User
 
 
 class UserRepository(ABC):
@@ -45,6 +45,26 @@ class MessageRepository(ABC):
         self, query: str, cursor_created_at: Optional[datetime], cursor_id: Optional[str], limit: int
     ) -> list[SearchResult]:
         """Búsqueda con highlighting, keyset pagination — search_messages()."""
+
+
+class RefreshTokenRepository(ABC):
+    """Fase 15 — rotación + reuse detection. Solo trata con el hash del token, nunca con el
+    valor crudo (regla dura: ningún secreto en texto plano)."""
+
+    @abstractmethod
+    def create(self, user_id: str, token_hash: str, expires_at: datetime) -> str:
+        """Devuelve el id del nuevo token."""
+
+    @abstractmethod
+    def find_by_hash(self, token_hash: str) -> Optional[RefreshTokenRecord]: ...
+
+    @abstractmethod
+    def revoke(self, token_id: str, replaced_by_token_id: Optional[str]) -> None: ...
+
+    @abstractmethod
+    def revoke_all_active_for_user(self, user_id: str) -> None:
+        """Respuesta a reuse detection: si un token ya revocado se vuelve a presentar, se
+        asume la cadena de rotación comprometida y se revoca todo lo que siga activo."""
 
 
 class PasswordHasher(ABC):

@@ -40,3 +40,12 @@ class Conversation:
     is_private: bool
     my_role: str
     last_message_at: Optional[datetime]
+
+
+@dataclass(frozen=True)
+class RefreshTokenRecord:
+    id: str
+    user_id: str
+    revoked_at: Optional[datetime]
+    replaced_by_token_id: Optional[str]
+    expires_at: datetime

@@ -17,3 +17,7 @@ class MessageAccessDeniedError(Exception):
 
 class EmptySearchQueryError(Exception):
     """Search query is blank."""
+
+
+class InvalidRefreshTokenError(Exception):
+    """Refresh token not recognized, expired, or reused after being revoked (Fase 15)."""

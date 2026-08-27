@@ -7,6 +7,7 @@ from backend.domain.ports import PasswordHasher, TokenService, UserRepository
 @dataclass
 class LoginResult:
     access_token: str
+    user_id: str
     token_type: str = "bearer"
 
 
@@ -27,4 +28,4 @@ class LoginUseCase:
         if not self._hasher.verify(password, password_hash):
             raise InvalidCredentialsError("Invalid email or password.")
         token = self._tokens.create_access_token(user.id)
-        return LoginResult(access_token=token)
+        return LoginResult(access_token=token, user_id=user.id)

@@ -286,3 +286,32 @@ solo lugar (la función) en vez de estar duplicado en 3 policies — ventaja, no
 ## D012 — Origen de nombre/cargo del usuario en el copiloto (JWT claims vs lookup server-side)
 
 _Pending._
+
+---
+
+## D013 — Reuse detection: revocar toda la cadena, no solo el token reutilizado
+
+**Decision:** cuando `RefreshTokenUseCase` detecta que un token ya revocado se presenta de
+nuevo, revoca **todos** los refresh tokens activos de ese usuario (`revoke_all_active_for_user`),
+no solo el token reutilizado.
+
+**Context:** Fase 15 exige "reuse detection: token revocado reutilizado → DENY" — el plan no
+especifica el alcance de la respuesta, solo que debe denegarse.
+
+**Why:** la reutilización de un token ya rotado tiene una sola explicación razonable: alguien
+más (un atacante) tiene una copia del token A y lo usó, o la víctima lo está usando después
+de que un atacante ya rotó A→B primero. En cualquiera de los dos casos, no hay forma de saber
+—solo con esta señal— cuál de las dos cadenas (la del atacante o la de la víctima) sigue
+siendo legítima. La respuesta segura es asumir que **toda** la sesión está comprometida y
+forzar un login nuevo, no intentar adivinar cuál mitad de la cadena "salvar".
+
+**Alternatives:** revocar solo el token reutilizado (A) y dejar viva su cadena descendiente
+(B) — más conveniente para el usuario legítimo, pero si el atacante fue quien generó B
+(robó A y rotó primero), esto le dejaría una sesión válida activa; deshabilitar la cuenta
+completa hasta intervención manual (demasiado disruptivo para el alcance de esta prueba, sin
+flujo de soporte que lo justifique).
+
+**Trade-off:** un usuario legítimo cuyo token viejo se reutilizó por error (ej. un cliente con
+un bug que reintenta la request de refresh) pierde **todas** sus sesiones activas, no solo
+una — se acepta porque el costo de un falso positivo (volver a loguearse) es mucho menor que
+el costo de un falso negativo (sesión de atacante viva).

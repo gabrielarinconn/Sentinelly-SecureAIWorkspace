@@ -11,6 +11,7 @@ export function App() {
   const { status } = useAuth();
   const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
   const [channels, setChannels] = useState<Conversation[] | "loading" | "error">("loading");
+  const [copilotOpen, setCopilotOpen] = useState(true);
 
   useEffect(() => {
     if (status !== "authenticated") return;
@@ -63,15 +64,15 @@ export function App() {
     : null;
 
   return (
-    <div className="app-layout">
+    <div className={"app-layout" + (copilotOpen ? "" : " copilot-closed")}>
       <Sidebar
         channels={channels}
         activeChannelId={activeChannelId}
         onSelectChannel={setActiveChannelId}
         onDirectMessageStarted={onDirectMessageStarted}
       />
-      <ChatPanel channelId={activeChannelId} channel={activeChannel} />
-      <CopilotPanel />
+      <ChatPanel channelId={activeChannelId} channel={activeChannel} onOpenCopilot={() => setCopilotOpen(true)} />
+      {copilotOpen && <CopilotPanel onClose={() => setCopilotOpen(false)} />}
     </div>
   );
 }

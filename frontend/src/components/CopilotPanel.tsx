@@ -12,7 +12,7 @@ interface CopilotTurn {
 
 /** Zona "panel del copiloto" del layout de 3 zonas (Fase 17). Pipeline real desde la Fase 18:
  * pregunta -> embedding local -> retrieve_ai_context() (RLS) -> DeepSeek -> respuesta + citas. */
-export function CopilotPanel() {
+export function CopilotPanel({ onClose }: { onClose: () => void }) {
   const { t } = useI18n();
   const [question, setQuestion] = useState("");
   const [turns, setTurns] = useState<CopilotTurn[]>([]);
@@ -40,6 +40,9 @@ export function CopilotPanel() {
           <h2>{t("copilot.title")}</h2>
           <span className="copilot-subtitle">{t("copilot.subtitle")}</span>
         </div>
+        <button className="copilot-close-button" onClick={onClose} aria-label={t("copilot.close")} title={t("copilot.close")}>
+          ✕
+        </button>
       </div>
       <div className="copilot-turns">
         {turns.length === 0 && <p className="state-message">{t("copilot.empty")}</p>}
@@ -65,11 +68,13 @@ export function CopilotPanel() {
       </div>
       <div className="composer">
         <input
+          id="copilot-question-input"
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && void ask()}
           placeholder={t("copilot.placeholder")}
           disabled={loading}
+          autoFocus
         />
         <button onClick={() => void ask()} disabled={loading}>
           {t("copilot.send")}

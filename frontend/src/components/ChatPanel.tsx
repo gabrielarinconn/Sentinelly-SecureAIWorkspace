@@ -3,12 +3,11 @@ import { useAuth } from "../auth/AuthContext";
 import { useI18n } from "../i18n/I18nContext";
 import { api, ApiError } from "../api/client";
 import { useChannelSocket } from "../hooks/useChannelSocket";
-import type { Message, PendingMessage, SearchResult } from "../api/types";
+import type { Conversation, Message, PendingMessage, SearchResult } from "../api/types";
 import { SearchHighlight } from "./SearchHighlight";
 import { LoadingDots } from "./LoadingDots";
 import { Avatar } from "./Avatar";
 import { avatarFor } from "../lib/avatar";
-import type { Conversation } from "../api/types";
 import { usePresence } from "../hooks/usePresence";
 
 type LoadState = "loading" | "error" | "ready";
@@ -25,7 +24,19 @@ function upsert(list: PendingMessage[], incoming: Message, delivery: PendingMess
   return [...list, next];
 }
 
-export function ChatPanel({ channelId, channel }: { channelId: string | null; channel: Conversation | null }) {
+function formatTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+interface ChatPanelProps {
+  channelId: string | null;
+  channel: Conversation | null;
+  onOpenCopilot: () => void;
+}
+
+export function ChatPanel({ channelId, channel, onOpenCopilot }: ChatPanelProps) {
   const { user } = useAuth();
   const { t } = useI18n();
   const onlineUserIds = usePresence();
@@ -38,9 +49,21 @@ export function ChatPanel({ channelId, channel }: { channelId: string | null; ch
   const [editDraft, setEditDraft] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null);
+  const [senderNames, setSenderNames] = useState<Record<string, string>>({});
 
   const listRef = useRef<HTMLDivElement>(null);
   const previousScrollHeight = useRef(0);
+
+  // Directorio de nombres para mostrar "Kai Moreno" arriba de la burbuja en vez de un id —
+  // un solo fetch (misma lista que usa el picker de DM), sin volver a pedirlo por mensaje.
+  useEffect(() => {
+    api
+      .listUsers()
+      .then((users) => setSenderNames(Object.fromEntries(users.map((u) => [u.id, u.full_name]))))
+      .catch(() => {
+        // el nombre simplemente no se muestra si el directorio falla — no es crítico
+      });
+  }, []);
 
   useEffect(() => {
     if (!channelId) return;
@@ -92,7 +115,16 @@ export function ChatPanel({ channelId, channel }: { channelId: string | null; ch
     setDraft("");
     setMessages((prev) => [
       ...prev,
-      { id: clientId, channel_id: channelId, sender_id: user.id, content, status: "active", delivery: "pending", clientId },
+      {
+        id: clientId,
+        channel_id: channelId,
+        sender_id: user.id,
+        content,
+        status: "active",
+        created_at: new Date().toISOString(),
+        delivery: "pending",
+        clientId,
+      },
     ]);
     requestAnimationFrame(() => {
       if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
@@ -147,6 +179,11 @@ export function ChatPanel({ channelId, channel }: { channelId: string | null; ch
     }
   };
 
+  const focusCopilot = () => {
+    onOpenCopilot();
+    document.getElementById("copilot-question-input")?.focus();
+  };
+
   if (!channelId) {
     return (
       <main className="chat-panel empty-state">
@@ -157,50 +194,50 @@ export function ChatPanel({ channelId, channel }: { channelId: string | null; ch
 
   return (
     <main className="chat-panel">
-      {channel && channel.is_direct ? (
+      {channel && (
         <div className="chat-header">
-          <span className="avatar-status-wrap">
-            <Avatar seed={channel.dm_peer_id ?? channel.channel_id} size="md" />
-            <span
-              className={"presence-dot" + (channel.dm_peer_id && onlineUserIds.has(channel.dm_peer_id) ? " online" : "")}
-              aria-hidden="true"
-            />
-          </span>
-          <div className="chat-header-info">
-            <h2>{channel.dm_peer_name}</h2>
-            <span className="chat-header-members">
-              {channel.dm_peer_id && onlineUserIds.has(channel.dm_peer_id) ? t("sidebar.online") : t("sidebar.offline")}
+          {channel.is_direct ? (
+            <span className="avatar-status-wrap">
+              <Avatar seed={channel.dm_peer_id ?? channel.channel_id} size="md" />
+              <span
+                className={"presence-dot" + (channel.dm_peer_id && onlineUserIds.has(channel.dm_peer_id) ? " online" : "")}
+                aria-hidden="true"
+              />
             </span>
-          </div>
-        </div>
-      ) : (
-        channel && (
-          <div className="chat-header">
+          ) : (
             <span className="chat-header-icon" aria-hidden="true">
               {avatarFor(channel.channel_name ?? "").emoji}
             </span>
-            <div className="chat-header-info">
-              <h2>#{channel.channel_name}</h2>
-              <span className="chat-header-members">
-                {channel.member_count} {t("sidebar.members")}
-              </span>
-            </div>
-            {channel.is_private && <span className="channel-badge">{t("sidebar.private")}</span>}
+          )}
+          <div className="chat-header-info">
+            <h2>{channel.is_direct ? channel.dm_peer_name : `#${channel.channel_name}`}</h2>
+            <span className="chat-header-members">
+              {channel.is_direct
+                ? channel.dm_peer_id && onlineUserIds.has(channel.dm_peer_id)
+                  ? t("sidebar.online")
+                  : t("sidebar.offline")
+                : `${channel.member_count} ${t("sidebar.members")}`}
+            </span>
           </div>
-        )
+          {!channel.is_direct && channel.is_private && <span className="channel-badge">{t("sidebar.private")}</span>}
+          <input
+            className="search-input"
+            placeholder={t("search.placeholder")}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && void runSearch()}
+          />
+          <button className="copilot-jump-button" onClick={focusCopilot} aria-label={t("copilot.title")} title={t("copilot.title")}>
+            ✦
+          </button>
+        </div>
       )}
-      <div className="chat-toolbar">
-        <input
-          className="search-input"
-          placeholder={t("search.placeholder")}
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && void runSearch()}
-        />
-        {searchResults !== null && (
+
+      {searchResults !== null && (
+        <div className="chat-toolbar">
           <button onClick={() => setSearchResults(null)}>{t("search.back")}</button>
-        )}
-      </div>
+        </div>
+      )}
 
       {searchResults !== null ? (
         <div className="search-results">
@@ -230,10 +267,12 @@ export function ChatPanel({ channelId, channel }: { channelId: string | null; ch
             )}
             {messages.map((message) => {
               const isOwn = message.sender_id === user?.id;
+              const { colorClass } = avatarFor(message.sender_id);
               return (
                 <div key={message.clientId} className={"message" + (isOwn ? " own" : "")}>
                   {!isOwn && <Avatar seed={message.sender_id} size="sm" />}
                   <div className="message-content">
+                    {!isOwn && <span className="message-sender">{senderNames[message.sender_id] ?? ""}</span>}
                     {editingId === message.id ? (
                       <div className="message-edit">
                         <input value={editDraft} onChange={(e) => setEditDraft(e.target.value)} autoFocus />
@@ -241,7 +280,12 @@ export function ChatPanel({ channelId, channel }: { channelId: string | null; ch
                       </div>
                     ) : (
                       <>
-                        <div className={"message-bubble" + (message.status === "deleted" ? " deleted" : "")}>
+                        <div
+                          className={
+                            "message-bubble" +
+                            (message.status === "deleted" ? " deleted" : !isOwn ? ` ${colorClass}` : "")
+                          }
+                        >
                           {message.status === "deleted" ? (
                             <>
                               <span aria-hidden="true">🗑️</span> <em>{t("chat.deleted")}</em>
@@ -253,6 +297,7 @@ export function ChatPanel({ channelId, channel }: { channelId: string | null; ch
                             </>
                           )}
                         </div>
+                        <span className="message-timestamp">{formatTime(message.created_at)}</span>
                         {message.delivery === "pending" && (
                           <span className="delivery-tag">
                             <LoadingDots />
@@ -286,7 +331,9 @@ export function ChatPanel({ channelId, channel }: { channelId: string | null; ch
               onKeyDown={(e) => e.key === "Enter" && void send()}
               placeholder={t("chat.composerPlaceholder")}
             />
-            <button onClick={() => void send()}>{t("chat.send")}</button>
+            <button className="send-button" onClick={() => void send()} aria-label={t("chat.send")} title={t("chat.send")}>
+              ➤
+            </button>
           </div>
         </>
       )}

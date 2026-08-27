@@ -57,28 +57,19 @@ export function Sidebar({ channels, activeChannelId, onSelectChannel, onDirectMe
         <span className="brand-mark" aria-hidden="true">
           🛡️
         </span>
-        <strong>Sentinelly</strong>
-      </div>
-
-      <div className="sidebar-header">
-        <h2>{t("sidebar.channels")}</h2>
-        <div className="sidebar-controls">
-          <select value={locale} onChange={(e) => setLocale(e.target.value as "es" | "en")} aria-label="language">
-            <option value="es">ES</option>
-            <option value="en">EN</option>
-          </select>
-          <button
-            className="theme-toggle"
-            onClick={toggleTheme}
-            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-          >
-            {theme === "dark" ? "☀️" : "🌙"}
-          </button>
+        <div>
+          <strong>Sentinelly</strong>
+          <span className="sidebar-brand-subtitle">
+            {t("sidebar.today")} · {user?.full_name?.split(" ")[0]}
+          </span>
         </div>
       </div>
 
       <nav className="channel-list">
+        <div className="sidebar-section-header">
+          <h3>{t("sidebar.channels")}</h3>
+        </div>
+
         {regularChannels === "loading" && (
           <div className="state-message">
             <LoadingDots />
@@ -92,10 +83,15 @@ export function Sidebar({ channels, activeChannelId, onSelectChannel, onDirectMe
               className={"channel-item" + (channel.channel_id === activeChannelId ? " active" : "")}
               onClick={() => onSelectChannel(channel.channel_id)}
             >
-              <span className="channel-name">
-                <span aria-hidden="true">{avatarFor(channel.channel_name ?? "").emoji}</span> #{channel.channel_name}
+              <span className="channel-item-avatar" aria-hidden="true">
+                {channel.is_private ? "🔒" : avatarFor(channel.channel_name ?? "").emoji}
               </span>
-              {channel.is_private && <span className="channel-badge">{t("sidebar.private")}</span>}
+              <span className="channel-item-info">
+                <strong className="channel-item-name">#{channel.channel_name}</strong>
+                <span className="channel-item-meta">
+                  {channel.member_count} · 💬
+                </span>
+              </span>
               {channel.unread_count > 0 && <span className="unread-badge">{channel.unread_count}</span>}
             </button>
           ))}
@@ -151,24 +147,48 @@ export function Sidebar({ channels, activeChannelId, onSelectChannel, onDirectMe
             className={"channel-item" + (dm.channel_id === activeChannelId ? " active" : "")}
             onClick={() => onSelectChannel(dm.channel_id)}
           >
-            <span className="channel-name">
-              <span className="avatar-status-wrap">
-                <Avatar seed={dm.dm_peer_id ?? dm.channel_id} size="sm" />
-                <span
-                  className={"presence-dot" + (dm.dm_peer_id && onlineUserIds.has(dm.dm_peer_id) ? " online" : "")}
-                  aria-hidden="true"
-                />
-              </span>
-              {dm.dm_peer_name}
+            <span className="avatar-status-wrap">
+              <Avatar seed={dm.dm_peer_id ?? dm.channel_id} size="md" />
+              <span
+                className={"presence-dot" + (dm.dm_peer_id && onlineUserIds.has(dm.dm_peer_id) ? " online" : "")}
+                aria-hidden="true"
+              />
+            </span>
+            <span className="channel-item-info">
+              <strong className="channel-item-name">{dm.dm_peer_name}</strong>
+              <span className="channel-item-meta">{dm.member_count} · 💬</span>
             </span>
             {dm.unread_count > 0 && <span className="unread-badge">{dm.unread_count}</span>}
           </button>
         ))}
       </nav>
 
+      <div className="sidebar-bottom-controls">
+        <select
+          className="locale-pill"
+          value={locale}
+          onChange={(e) => setLocale(e.target.value as "es" | "en")}
+          aria-label="language"
+        >
+          <option value="es">文A ES</option>
+          <option value="en">文A EN</option>
+        </select>
+        <button
+          className="theme-toggle"
+          onClick={toggleTheme}
+          aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          {theme === "dark" ? "☀️" : "🌙"}
+        </button>
+      </div>
+
       <div className="user-profile">
         <div className="user-profile-identity">
-          <Avatar initial={user?.full_name?.charAt(0)} size="sm" />
+          <span className="avatar-status-wrap">
+            <Avatar initial={user?.full_name?.charAt(0)} size="sm" />
+            <span className="presence-dot online" aria-hidden="true" />
+          </span>
           <div className="user-profile-info">
             <strong>{user?.full_name}</strong>
             <span>{user?.role_title}</span>

@@ -1,6 +1,7 @@
 import asyncio
 import os
 from contextlib import asynccontextmanager
+from datetime import datetime
 from typing import Optional
 
 from fastapi import Depends, FastAPI, Query, WebSocket, WebSocketDisconnect, status
@@ -20,7 +21,7 @@ from backend.application.list_channels import ListChannelsUseCase
 from backend.application.list_users import ListUsersUseCase
 from backend.application.mark_channel_read import MarkChannelReadUseCase
 from backend.application.start_direct_message import StartDirectMessageUseCase
-from backend.domain.entities import Conversation
+from backend.domain.entities import Conversation, Message
 from backend.application.login import LoginUseCase
 from backend.application.logout import LogoutUseCase
 from backend.application.refresh_token import RefreshTokenUseCase
@@ -194,6 +195,13 @@ class MessageResponse(BaseModel):
     sender_id: str
     content: Optional[str]
     status: str
+    created_at: datetime
+
+
+def _message_to_response(m: Message) -> MessageResponse:
+    return MessageResponse(
+        id=m.id, channel_id=m.channel_id, sender_id=m.sender_id, content=m.content, status=m.status, created_at=m.created_at
+    )
 
 
 def _send_message_sync(channel_id: str, user_id: str, content: str) -> MessageResponse:
@@ -204,9 +212,7 @@ def _send_message_sync(channel_id: str, user_id: str, content: str) -> MessageRe
             message = SendMessageUseCase(repo).execute(channel_id, user_id, content)
     finally:
         conn.close()
-    return MessageResponse(
-        id=message.id, channel_id=message.channel_id, sender_id=message.sender_id, content=message.content, status=message.status
-    )
+    return _message_to_response(message)
 
 
 @app.post("/channels/{channel_id}/messages", response_model=MessageResponse)
@@ -219,7 +225,7 @@ async def send_message(channel_id: str, body: SendMessageRequest, user_id: str =
         raise app_error(status.HTTP_403_FORBIDDEN, "MESSAGE_ACCESS_DENIED", "You do not have access to this channel.") from exc
     # Realtime se emite SOLO después de que run_in_threadpool ya retornó — es decir, después
     # de que authorized_transaction hizo COMMIT. Nunca antes (Fase 7, orden estricto).
-    await broadcaster.publish(channel_id, {**message.model_dump(), "event": "message_created"})
+    await broadcaster.publish(channel_id, {**message.model_dump(mode="json"), "event": "message_created"})
     return message
 
 
@@ -235,9 +241,7 @@ def _edit_message_sync(message_id: str, user_id: str, content: str) -> MessageRe
             message = EditMessageUseCase(repo).execute(message_id, content)
     finally:
         conn.close()
-    return MessageResponse(
-        id=message.id, channel_id=message.channel_id, sender_id=message.sender_id, content=message.content, status=message.status
-    )
+    return _message_to_response(message)
 
 
 @app.patch("/messages/{message_id}", response_model=MessageResponse)
@@ -248,7 +252,7 @@ async def edit_message(message_id: str, body: EditMessageRequest, user_id: str =
         raise app_error(422, "EMPTY_MESSAGE", str(exc)) from exc
     except MessageAccessDeniedError as exc:
         raise app_error(status.HTTP_403_FORBIDDEN, "MESSAGE_ACCESS_DENIED", "You do not have access to this message.") from exc
-    await broadcaster.publish(message.channel_id, {**message.model_dump(), "event": "message_edited"})
+    await broadcaster.publish(message.channel_id, {**message.model_dump(mode="json"), "event": "message_edited"})
     return message
 
 
@@ -260,9 +264,7 @@ def _delete_message_sync(message_id: str, user_id: str) -> MessageResponse:
             message = DeleteMessageUseCase(repo).execute(message_id)
     finally:
         conn.close()
-    return MessageResponse(
-        id=message.id, channel_id=message.channel_id, sender_id=message.sender_id, content=message.content, status=message.status
-    )
+    return _message_to_response(message)
 
 
 @app.delete("/messages/{message_id}", response_model=MessageResponse)
@@ -271,7 +273,7 @@ async def delete_message(message_id: str, user_id: str = Depends(get_current_use
         message = await run_in_threadpool(_delete_message_sync, message_id, user_id)
     except MessageAccessDeniedError as exc:
         raise app_error(status.HTTP_403_FORBIDDEN, "MESSAGE_ACCESS_DENIED", "You do not have access to this message.") from exc
-    await broadcaster.publish(message.channel_id, {**message.model_dump(), "event": "message_deleted"})
+    await broadcaster.publish(message.channel_id, {**message.model_dump(mode="json"), "event": "message_deleted"})
     return message
 
 
@@ -296,10 +298,7 @@ def get_channel_messages(
         conn.close()
     next_cursor = encode_cursor(messages[-1].created_at, messages[-1].id) if len(messages) == limit else None
     return PageResponse(
-        items=[
-            MessageResponse(id=m.id, channel_id=m.channel_id, sender_id=m.sender_id, content=m.content, status=m.status)
-            for m in messages
-        ],
+        items=[_message_to_response(m) for m in messages],
         next_cursor=next_cursor,
     )
 

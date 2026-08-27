@@ -38,6 +38,7 @@ export interface Message {
   sender_id: string;
   content: string | null;
   status: MessageStatus;
+  created_at: string;
 }
 
 // Estado optimista del cliente (D009) — nunca se persiste en la base de datos, solo existe

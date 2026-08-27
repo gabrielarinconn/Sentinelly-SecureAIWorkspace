@@ -346,6 +346,10 @@ input:focus-visible {
   );
 }
 
+.app-layout.copilot-closed {
+  grid-template-columns: 270px 1fr;
+}
+
 /* ---------- Avatares (derivados de datos existentes — sender_id, channel_name, iniciales) ---------- */
 
 .avatar {
@@ -411,57 +415,37 @@ input:focus-visible {
 }
 
 .sidebar-brand {
-  padding: 1.1rem 1.1rem 0.7rem;
+  padding: 1.1rem 1.1rem 0.9rem;
   border-bottom: 1px solid var(--border);
+  align-items: center;
 }
 
 .sidebar-brand .brand-mark {
-  width: 2.1rem;
-  height: 2.1rem;
-  font-size: 1.05rem;
+  width: 2.3rem;
+  height: 2.3rem;
+  font-size: 1.1rem;
 }
 
 .sidebar-brand strong {
   font-size: 1.02rem;
+  display: block;
 }
 
-.sidebar-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.9rem 1.1rem 0.5rem;
-}
-
-.sidebar-header h2 {
-  margin: 0;
-  font-size: 1.05rem;
-}
-
-.sidebar-controls {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.sidebar-header select {
-  background: var(--panel-alt);
-  border: 1px solid var(--border);
+.sidebar-brand-subtitle {
+  font-size: 0.76rem;
+  font-weight: 600;
   color: var(--text-dim);
-  border-radius: var(--radius-pill);
-  padding: 0.25rem 0.6rem;
-  font-family: var(--font-sans);
-  font-weight: 700;
-  font-size: 0.78rem;
 }
 
 .theme-toggle {
   background: var(--panel-alt);
   border: 1px solid var(--border);
   color: var(--text);
-  width: 1.9rem;
-  height: 1.9rem;
+  width: 2.1rem;
+  height: 2.1rem;
+  flex-shrink: 0;
   padding: 0;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   line-height: 1;
   display: inline-flex;
   align-items: center;
@@ -478,26 +462,56 @@ input:focus-visible {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
-  padding: 0.5rem 0.7rem;
+  gap: 0.25rem;
+  padding: 0.6rem 0.7rem;
 }
 
 .channel-item {
   background: transparent;
   color: var(--text);
   text-align: left;
-  border-radius: var(--radius-md);
-  padding: 0.6rem 0.8rem;
+  border-radius: var(--radius-lg);
+  padding: 0.55rem 0.7rem;
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 0.6rem;
   font-weight: 600;
 }
 
-.channel-name {
+.channel-item-avatar {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
+  justify-content: center;
+  width: 2.3rem;
+  height: 2.3rem;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--panel-alt);
+  font-size: 1.05rem;
+}
+
+.channel-item-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  gap: 0.1rem;
+}
+
+.channel-item-name {
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.channel-item-meta {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
 }
 
 .channel-item:hover {
@@ -505,8 +519,17 @@ input:focus-visible {
 }
 
 .channel-item.active {
-  background: var(--primary-soft);
-  color: var(--primary-hover);
+  background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 70%, var(--accent-warm)));
+  color: white;
+  box-shadow: var(--shadow-soft);
+}
+
+.channel-item.active .channel-item-avatar {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.channel-item.active .channel-item-meta {
+  color: rgba(255, 255, 255, 0.82);
 }
 
 .channel-badge {
@@ -516,6 +539,26 @@ input:focus-visible {
   background: color-mix(in srgb, var(--accent-warm) 14%, transparent);
   border-radius: var(--radius-pill);
   padding: 0.15rem 0.5rem;
+}
+
+.sidebar-bottom-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 1.1rem;
+  border-top: 1px solid var(--border);
+}
+
+.locale-pill {
+  flex: 1;
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: var(--radius-pill);
+  padding: 0.5rem 0.9rem;
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: 0.8rem;
 }
 
 .sidebar-section-header {
@@ -707,20 +750,22 @@ input:focus-visible {
 .chat-header {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.9rem 1.1rem 0.6rem;
+  gap: 0.7rem;
+  padding: 0.9rem 1.1rem;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
 }
 
 .chat-header-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.1rem;
-  height: 2.1rem;
+  width: 2.3rem;
+  height: 2.3rem;
   flex-shrink: 0;
   border-radius: 50%;
   background: var(--panel-alt);
-  font-size: 1.05rem;
+  font-size: 1.1rem;
 }
 
 .chat-header-info {
@@ -741,16 +786,36 @@ input:focus-visible {
 .chat-toolbar {
   display: flex;
   gap: 0.5rem;
-  padding: 0.6rem 1.1rem 0.9rem;
+  padding: 0.6rem 1.1rem;
   border-bottom: 1px solid var(--border);
 }
 
 .search-input {
   flex: 1;
+  min-width: 160px;
+  background-color: var(--panel-alt);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238c8079' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: 0.85rem center;
   padding-left: 2.4rem;
+}
+
+.copilot-jump-button {
+  flex-shrink: 0;
+  width: 2.3rem;
+  height: 2.3rem;
+  padding: 0;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-warm), var(--accent-warm-hover));
+  color: white;
+  font-size: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.copilot-jump-button:hover {
+  box-shadow: var(--shadow-soft);
 }
 
 .message-list {
@@ -795,6 +860,13 @@ input:focus-visible {
   min-width: 0;
 }
 
+.message-sender {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 0.15rem 0.2rem;
+}
+
 .message-bubble {
   background: var(--panel-alt);
   border-radius: var(--radius-lg);
@@ -815,6 +887,25 @@ input:focus-visible {
   border-bottom-left-radius: var(--radius-sm);
 }
 
+/* Tinte pastel por remitente en canales grupales — deriva del mismo hash que su avatar
+   (avatarFor), nunca de un dato nuevo. Selector compuesto para ganarle en especificidad al
+   .message-bubble base sin depender del orden de las reglas. */
+.message-bubble.avatar-c0 {
+  background: color-mix(in srgb, var(--primary) 14%, var(--panel-alt));
+}
+
+.message-bubble.avatar-c1 {
+  background: color-mix(in srgb, var(--accent-warm) 16%, var(--panel-alt));
+}
+
+.message-bubble.avatar-c2 {
+  background: color-mix(in srgb, var(--success) 14%, var(--panel-alt));
+}
+
+.message-bubble.avatar-c3 {
+  background: color-mix(in srgb, var(--warn) 16%, var(--panel-alt));
+}
+
 .message-bubble.deleted {
   background: transparent;
   border: 1px dashed var(--border);
@@ -826,6 +917,17 @@ input:focus-visible {
   font-size: 0.72rem;
   color: var(--text-dim);
   font-style: italic;
+}
+
+.message-timestamp {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  margin: 0.25rem 0 0 0.2rem;
+}
+
+.message.own .message-timestamp {
+  align-self: flex-end;
+  margin: 0.25rem 0.2rem 0 0;
 }
 
 .delivery-tag {
@@ -882,6 +984,7 @@ input:focus-visible {
 
 .composer {
   display: flex;
+  align-items: center;
   gap: 0.6rem;
   padding: 0.9rem 1.1rem;
   border-top: 1px solid var(--border);
@@ -889,6 +992,18 @@ input:focus-visible {
 
 .composer input {
   flex: 1;
+}
+
+.send-button {
+  flex-shrink: 0;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .search-results {
@@ -941,6 +1056,26 @@ input:focus-visible {
   display: flex;
   align-items: center;
   gap: 0.6rem;
+}
+
+.copilot-close-button {
+  margin-left: auto;
+  flex-shrink: 0;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--primary-hover);
+  font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.copilot-close-button:hover {
+  background: var(--panel);
+  box-shadow: none;
 }
 
 .copilot-panel h2 {
@@ -1038,6 +1173,10 @@ input:focus-visible {
     grid-template-columns: 230px 1fr 270px;
     gap: 10px;
     padding: 10px;
+  }
+
+  .app-layout.copilot-closed {
+    grid-template-columns: 230px 1fr;
   }
 }
 

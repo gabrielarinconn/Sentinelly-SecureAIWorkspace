@@ -8,7 +8,13 @@ from pgvector.psycopg import register_vector
 
 def get_app_connection() -> psycopg.Connection:
     """Conexión con el rol de aplicación (rw_app: sin SUPERUSER, sin BYPASSRLS, Fase 4).
-    Usar SIEMPRE para código que atiende una request de un usuario autenticado."""
+    Usar SIEMPRE para código que atiende una request de un usuario autenticado.
+
+    Nota (Fase 12): al pasar un list[float] como parámetro de una función SQL que espera
+    `vector` (ej. retrieve_ai_context), hace falta castear explícitamente en la query
+    (`%s::vector`) — Postgres solo infiere `vector` desde un array sin tipo en contexto de
+    asignación (INSERT/UPDATE ... SET columna = %s), no en la posición de un argumento de
+    función."""
     conn = psycopg.connect(os.environ["RW_APP_DATABASE_URL"])
     register_vector(conn)  # adapta vector <-> list[float] automáticamente (Fase 10/12)
     return conn

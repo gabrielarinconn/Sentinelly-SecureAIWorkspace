@@ -14,7 +14,7 @@ Estado: ⬜ pendiente · 🟡 implementado/no demostrado · 🟢 demostrado
 | R05 | 2 procedimientos (consulta/edición-eliminación usuarios) | database/procedures/ | 🟢 | tests/test_fase9_conversations_procedures.py (CALL + FETCH, edición/desactivación solo del propio actor) |
 | R06 | Keyset pagination (no OFFSET) | database/functions/0002_get_channel_messages.sql | 🟢 | tests/test_fase8_search_history.py::test_keyset_pagination_never_uses_offset_and_pages_through_all_messages |
 | R07 | Search + highlighting (ts_headline) | database/functions/0003_search_messages.sql | 🟢 | tests/test_fase8_search_history.py (highlight, RLS-scoped, query vacío rechazado) |
-| R08 | RAG autorizado en SQL | retrieve_ai_context() | ⬜ | |
+| R08 | RAG autorizado en SQL | database/functions/0004_retrieve_ai_context.sql | 🟢 | tests/test_fase12_secure_retrieval.py |
 | R09 | Copilot conoce nombre/cargo | JWT claims → server-side context | ⬜ | |
 | R10 | Citas en respuestas del copiloto | prompts/, application/ask_copilot | ⬜ | |
 | R11 | Negativas explícitas | system prompt | ⬜ | |
@@ -25,7 +25,7 @@ Estado: ⬜ pendiente · 🟡 implementado/no demostrado · 🟢 demostrado
 | R16 | Clean Architecture (dominio sin FastAPI/driver/SDK) | backend/domain/ | 🟡 | verificado manualmente (grep de imports); falta test automatizado (Fase 13/20) |
 | R17 | SOLID / patrón justificado | DECISIONS.md | ⬜ | |
 | R18 | Test: non-member denegado | tests/ | 🟢 | tests/test_fase4_rls_jwt.py, tests/test_fase5_channel_acl.py, tests/test_fase6_messages_audit.py |
-| R19 | Test: RAG no filtra canal privado ajeno | tests/ | ⬜ | |
+| R19 | Test: RAG no filtra canal privado ajeno | tests/test_fase12_secure_retrieval.py | 🟢 | non-member 0 filas del canal privado ante 3 queries distintas, incluida una que pide explícitamente ese contenido |
 | R20 | Docker compose up (DB+backend+frontend) | docker-compose.yml | ⬜ | |
 | R21 | Correlation ID | middleware + error envelope | ⬜ | |
 | R22 | Primer commit sin lógica previa | git log | ⬜ | |

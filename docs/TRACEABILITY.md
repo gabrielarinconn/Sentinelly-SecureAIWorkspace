@@ -28,4 +28,4 @@ Estado: ⬜ pendiente · 🟡 implementado/no demostrado · 🟢 demostrado
 | R19 | Test: RAG no filtra canal privado ajeno | tests/test_fase12_secure_retrieval.py | 🟢 | non-member 0 filas del canal privado ante 3 queries distintas, incluida una que pide explícitamente ese contenido |
 | R20 | Docker compose up (DB+backend+frontend) | docker-compose.yml, backend/Dockerfile, frontend/Dockerfile | 🟢 | verificado desde volumen limpio (`docker compose down -v` → `up -d` → migrate → seed → login/chat/copilot en navegador, todo cross-container) |
 | R21 | Correlation ID | backend/presentation/{middleware,errors}.py | 🟢 | tests/test_fase16_api_errors_correlation.py |
-| R22 | Primer commit sin lógica previa | git log | ⬜ | |
+| R22 | Primer commit sin lógica previa | git log | 🟢 | commit `fb7376e` "chore: initial project scaffolding" — solo carpetas, README/ARCHITECTURE/DECISIONS stub, sin lógica |

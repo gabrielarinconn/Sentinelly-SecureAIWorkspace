@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sentinel_dev_password}
       POSTGRES_DB: ${POSTGRES_DB:-bd_gabriela_rincon_nakamoto}
     ports:
-      # 5432 y 5433 ya están ocupados por otros proyectos en esta máquina — este servicio
+      # 5432 y 5433 pueden estar ocupados por otros proyectos en la máquina — este servicio
       # usa 5434 en el host (el puerto interno del contenedor sigue siendo 5432).
       - "5434:5432"
     volumes:
@@ -17,7 +17,36 @@ services:
       timeout: 5s
       retries: 10
 
-# Backend y frontend se agregan en la Fase 21 (Docker y despliegue).
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file: .env
+    environment:
+      # Dentro de la red de docker compose el host es el nombre del servicio ("postgres") y
+      # el puerto interno del contenedor (5432) — no localhost:5434, eso es solo para acceso
+      # desde el host. Se sobreescriben acá porque .env está pensado para correr el backend
+      # SIN Docker (Fases 4-19 de este proyecto se desarrollaron así).
+      DATABASE_URL: postgresql://${POSTGRES_USER:-sentinel_app}:${POSTGRES_PASSWORD:-sentinel_dev_password}@postgres:5432/${POSTGRES_DB:-bd_gabriela_rincon_nakamoto}
+      RW_APP_DATABASE_URL: postgresql://rw_app:${RW_APP_PASSWORD}@postgres:5432/${POSTGRES_DB:-bd_gabriela_rincon_nakamoto}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:8000
+        VITE_WS_BASE_URL: ws://localhost:8000
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
 
 volumes:
   pgdata:

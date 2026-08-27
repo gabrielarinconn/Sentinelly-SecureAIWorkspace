@@ -74,7 +74,16 @@ async def lifespan(app: FastAPI):
     """Corre el worker de embeddings (Fase 10) en segundo plano mientras el proceso vive —
     sin esto, un mensaje recién enviado nunca pasaría de 'pending' a 'completed' salvo que
     algo externo llamara process_pending_embeddings() a mano (como hacían los tests antes de
-    esta fase)."""
+    esta fase).
+
+    DISABLE_COPILOT_BACKGROUND_WORKER=1 lo apaga — usado por tests/conftest.py: cada test que
+    abre `with TestClient(app)` dispara este lifespan, y el loop de fondo competía por
+    FOR UPDATE SKIP LOCKED con las llamadas explícitas a process_pending_embeddings() de los
+    tests (causaba fallos intermitentes). La app en vivo (uvicorn, sin esta variable) sigue
+    corriendo el worker normalmente."""
+    if os.environ.get("DISABLE_COPILOT_BACKGROUND_WORKER") == "1":
+        yield
+        return
 
     async def embedding_worker_loop() -> None:
         while True:

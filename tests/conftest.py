@@ -10,6 +10,14 @@ from pathlib import Path
 import psycopg
 import pytest
 
+# Debe fijarse ANTES de que cualquier test importe backend.presentation.api (que lee esto al
+# construir el lifespan) — conftest.py siempre se carga primero, así que este es el lugar.
+# Sin esto, el worker de embeddings en segundo plano (Fase 18, para la app en vivo) compite
+# por FOR UPDATE SKIP LOCKED con las llamadas explícitas a process_pending_embeddings() de los
+# tests, causando fallos intermitentes (una fila queda "saltada" por el loop de fondo justo
+# cuando un test la necesita ya procesada).
+os.environ.setdefault("DISABLE_COPILOT_BACKGROUND_WORKER", "1")
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SEED_FILE = REPO_ROOT / "database" / "seeds" / "0001_demo.sql"
 

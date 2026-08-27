@@ -49,3 +49,18 @@ class TokenService(ABC):
     @abstractmethod
     def decode_access_token(self, token: str) -> str:
         """Returns the user_id (sub claim). Raises InvalidTokenError otherwise."""
+
+
+class EmbeddingProvider(ABC):
+    """Interfaz mínima (D007) — un solo proveedor real detrás, intercambiable sin tocar el
+    resto de la app. El resto del sistema nunca importa el SDK concreto directamente."""
+
+    @abstractmethod
+    def embed(self, text: str) -> list[float]: ...
+
+
+class LLMProvider(ABC):
+    """Interfaz mínima (D007) para el copiloto — implementada en la Fase 18."""
+
+    @abstractmethod
+    def complete(self, system_prompt: str, user_prompt: str) -> str: ...

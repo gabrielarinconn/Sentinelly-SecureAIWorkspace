@@ -127,7 +127,37 @@ numerada.
 
 ## D006 — Async embeddings (trigger híbrido)
 
-_Pending._
+**Decision:** trigger `AFTER INSERT/UPDATE OF content` marca `rw_message_embeddings.status =
+'pending'` (+ `pg_notify`, opcional/no consumido todavía) — nunca llama a un proveedor de
+embeddings desde SQL. Un worker Python (`process_pending_embeddings()`) hace polling y
+convierte `pending → completed|failed` fuera de la transacción original.
+
+**Context:** llamar a una API externa desde un trigger bloquearía la transacción del INSERT
+del mensaje hasta que esa API respondiera — inaceptable para una operación que debe sentirse
+instantánea (enviar un mensaje).
+
+**Why:** el trigger es rápido y determinístico (una fila más, sin I/O de red); el trabajo
+lento y no determinístico (llamar a un LLM/embedding provider) vive en el backend, donde
+puede reintentarse, tener timeout, y fallar sin arrastrar la transacción del mensaje consigo.
+
+**Decisión adicional no anticipada (descubierta al probar):** el worker usa
+`get_admin_connection()` (rol superusuario), no `rw_app`. Es un proceso de sistema sin actor
+humano — necesita ver mensajes pendientes de **todos** los canales para vectorizarlos, y
+`rw_app` sin `SET LOCAL app.current_user_id` fijado recibe 0 filas de `rw_messages` por RLS
+(fail-closed), no un error, así que el bug pasó silencioso hasta que un test lo detectó. Esto
+no reintroduce el problema que RLS resuelve: el vector queda en la tabla, pero nadie lo *lee*
+con significado hasta `retrieve_ai_context()` (Fase 12), que sí corre bajo RLS con el actor
+real — la autorización sigue pasando antes de que el LLM vea nada.
+
+**Alternatives:** `LISTEN/NOTIFY` con un consumidor persistente en vez de polling (más
+"reactivo", pero requiere mantener una conexión de larga duración y manejar reconexión —
+complejidad no justificada para el alcance de esta prueba); llamar al proveedor sincrónicamente
+dentro de la misma request HTTP que crea el mensaje (descartado — el usuario esperaría a que
+termine el embedding para ver su propio mensaje "enviado").
+
+**Trade-off:** hay una ventana (hasta el siguiente ciclo del worker) donde un mensaje recién
+enviado todavía no es recuperable por el copiloto — aceptable, el copiloto no es tiempo real
+en el mismo sentido que los mensajes.
 
 ## D007 — LLMProvider abstraction (interfaz mínima, un proveedor real)
 

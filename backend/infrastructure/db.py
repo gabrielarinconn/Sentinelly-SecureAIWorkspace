@@ -3,12 +3,28 @@ from contextlib import contextmanager
 from typing import Iterator
 
 import psycopg
+from pgvector.psycopg import register_vector
 
 
 def get_app_connection() -> psycopg.Connection:
     """Conexión con el rol de aplicación (rw_app: sin SUPERUSER, sin BYPASSRLS, Fase 4).
-    Nunca usa el rol admin (DATABASE_URL) — ese es solo para migrar/seedear."""
-    return psycopg.connect(os.environ["RW_APP_DATABASE_URL"])
+    Usar SIEMPRE para código que atiende una request de un usuario autenticado."""
+    conn = psycopg.connect(os.environ["RW_APP_DATABASE_URL"])
+    register_vector(conn)  # adapta vector <-> list[float] automáticamente (Fase 10/12)
+    return conn
+
+
+def get_admin_connection() -> psycopg.Connection:
+    """Conexión con el rol admin (superusuario del contenedor, bypassa RLS).
+
+    Reservada para procesos de sistema sin actor humano detrás — hoy, únicamente el worker
+    de embeddings (Fase 10), que necesita ver TODOS los mensajes pendientes de vectorizar sin
+    estar limitado a lo que un usuario particular podría autorizar. No usarla nunca para
+    código que responde a una request HTTP de un usuario: eso es exactamente lo que
+    get_app_connection() + RLS existen para evitar."""
+    conn = psycopg.connect(os.environ["DATABASE_URL"])
+    register_vector(conn)
+    return conn
 
 
 @contextmanager

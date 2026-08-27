@@ -18,7 +18,7 @@ psql_exec() {
 
 psql_exec -c "CREATE TABLE IF NOT EXISTS schema_migrations (id text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now());"
 
-for dir in database/migrations database/functions database/policies database/triggers database/views; do
+for dir in database/migrations database/functions database/procedures database/policies database/triggers database/views; do
     [ -d "$dir" ] || continue
     shopt -s nullglob
     files=("$dir"/*.sql)

@@ -10,8 +10,8 @@ Estado: ⬜ pendiente · 🟡 implementado/no demostrado · 🟢 demostrado
 | R01 | Modelo 3FN | docs/erd/normalization.md, ERD.pdf, database/migrations/ | 🟡 | DDL corre desde cero, constraints verificadas manualmente (Fase 3); falta test automatizado (Fase 20) |
 | R02 | RLS activo (canales/mensajes) | database/policies/0001_channels_messages_rls.sql | 🟢 | tests/test_fase4_rls_jwt.py (member/non-member/fail-closed, 4 tests) |
 | R03 | Rol app sin BYPASSRLS | database/migrations/0009_app_role.sql | 🟢 | tests/test_fase4_rls_jwt.py::test_app_role_has_no_superuser_or_bypassrls |
-| R04 | Vista de conversaciones (security_invoker) | database/views/ | ⬜ | |
-| R05 | 2 procedimientos (consulta/edición-eliminación usuarios) | database/procedures/ | ⬜ | |
+| R04 | Vista de conversaciones (security_invoker) | database/views/0001_user_conversations.sql | 🟢 | tests/test_fase9_conversations_procedures.py (Alice ve 1 canal, Bob ve 2, roles correctos) |
+| R05 | 2 procedimientos (consulta/edición-eliminación usuarios) | database/procedures/ | 🟢 | tests/test_fase9_conversations_procedures.py (CALL + FETCH, edición/desactivación solo del propio actor) |
 | R06 | Keyset pagination (no OFFSET) | database/functions/0002_get_channel_messages.sql | 🟢 | tests/test_fase8_search_history.py::test_keyset_pagination_never_uses_offset_and_pages_through_all_messages |
 | R07 | Search + highlighting (ts_headline) | database/functions/0003_search_messages.sql | 🟢 | tests/test_fase8_search_history.py (highlight, RLS-scoped, query vacío rechazado) |
 | R08 | RAG autorizado en SQL | retrieve_ai_context() | ⬜ | |

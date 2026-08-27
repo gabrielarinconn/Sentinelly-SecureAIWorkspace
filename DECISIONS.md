@@ -216,7 +216,41 @@ le corresponde a él, no a la base de datos.
 
 ## D010 — Patrón de diseño aplicado y por qué
 
-_Pending._
+**Decision:** dos patrones, cada uno resolviendo un problema concreto ya presente en el
+código, no anticipado:
+
+**1. Strategy** — `backend/domain/ports.py` define `PasswordHasher`, `TokenService`,
+`EmbeddingProvider`, `LLMProvider` como interfaces (`ABC`); `backend/infrastructure/`
+contiene exactamente una implementación concreta de cada una (`BcryptPasswordHasher`,
+`JwtTokenService`, `LocalHashEmbeddingProvider` — reemplazada por el proveedor real en la
+Fase 18 —). Los casos de uso (`LoginUseCase`, etc.) dependen de la interfaz, nunca de la
+implementación concreta.
+
+**Why:** el plan exige explícitamente que LLM/embeddings sean intercambiables ("interfaz
+pequeña, un solo proveedor real detrás") — Strategy es el patrón que resuelve exactamente
+eso: cambiar de proveedor es escribir una clase nueva que implemente el puerto, sin tocar
+`application/` ni `presentation/`. `tests/test_fase13_clean_architecture.py` lo verifica de
+forma automática (ningún import de SDK externo en `domain/`), no solo de palabra.
+
+**2. Repository** — `UserRepository`/`MessageRepository` (interfaces en `domain/ports.py`) +
+`PsycopgUserRepository`/`PsycopgMessageRepository` (implementación en `infrastructure/`).
+
+**Why:** los casos de uso necesitan persistencia sin saber que es PostgreSQL/psycopg — eso es
+justo lo que exige la Clean Architecture del plan (R16: dominio sin el driver de Postgres).
+Además, cada método del repositorio es deliberadamente una operación de negocio completa
+(`create`, `edit`, `soft_delete`, `list_by_channel`, `search`) y no un CRUD genérico — el
+repositorio nunca decide autorización por su cuenta, delega esa decisión a RLS (principio
+central del proyecto), evitando el antipatrón de "Repository que reimplementa permisos en
+Python".
+
+**Alternatives:** Factory para instanciar proveedores según config (descartado — con un solo
+proveedor real detrás no hay nada que fabricar condicionalmente todavía; se puede introducir
+si algún día hay más de uno, no antes — YAGNI); Active Record en vez de Repository (mezclaría
+persistencia con entidades de dominio, y `domain/entities.py` dejaría de ser Python puro).
+
+**Trade-off:** una capa de indirección (la interfaz) para algo que hoy solo tiene una
+implementación real — el costo es aceptado porque el requisito de intercambiabilidad ya está
+explícitamente en el enunciado del plan, no es especulación.
 
 ## D011 — Scope cuts
 

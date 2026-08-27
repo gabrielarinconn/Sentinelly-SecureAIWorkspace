@@ -22,8 +22,8 @@ Estado: ⬜ pendiente · 🟡 implementado/no demostrado · 🟢 demostrado
 | R13 | Soft delete + historial | rw_message_history + database/triggers/0001_messages_audit.sql | 🟢 | tests/test_fase6_messages_audit.py (audit trail, physical DELETE blocked, deleted message immutable) |
 | R14 | i18n (ES/EN, sin strings hardcoded) | frontend/i18n/ | ⬜ | |
 | R15 | JWT + refresh + rotation + reuse detection | auth module | ⬜ | |
-| R16 | Clean Architecture (dominio sin FastAPI/driver/SDK) | backend/domain/ | 🟡 | verificado manualmente (grep de imports); falta test automatizado (Fase 13/20) |
-| R17 | SOLID / patrón justificado | DECISIONS.md | ⬜ | |
+| R16 | Clean Architecture (dominio sin FastAPI/driver/SDK) | backend/domain/, backend/application/ | 🟢 | tests/test_fase13_clean_architecture.py (chequeo estático de imports, AST) |
+| R17 | SOLID / patrón justificado | DECISIONS.md (D010) | 🟢 | Strategy (providers) + Repository (persistencia), justificados con el problema real que resuelven |
 | R18 | Test: non-member denegado | tests/ | 🟢 | tests/test_fase4_rls_jwt.py, tests/test_fase5_channel_acl.py, tests/test_fase6_messages_audit.py |
 | R19 | Test: RAG no filtra canal privado ajeno | tests/test_fase12_secure_retrieval.py | 🟢 | non-member 0 filas del canal privado ante 3 queries distintas, incluida una que pide explícitamente ese contenido |
 | R20 | Docker compose up (DB+backend+frontend) | docker-compose.yml | ⬜ | |

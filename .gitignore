@@ -1,0 +1,33 @@
+# Claude Code / AI-assistant artifacts — never committed, never traced
+CLAUDE.md
+guia-claude-code.md
+.claude/
+
+# Working references, not project deliverables
+sentinel-plan-final.md
+asssesment _empleabilidad_cohorte6.pdf
+
+# Secrets
+.env
+.env.local
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# Node
+node_modules/
+dist/
+build/
+.vite/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

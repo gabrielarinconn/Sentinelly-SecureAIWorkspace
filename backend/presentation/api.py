@@ -457,6 +457,9 @@ class AskCopilotRequest(BaseModel):
 class CitationResponse(BaseModel):
     message_id: str
     channel_id: str
+    sender_id: str
+    content: str
+    citation_number: int
 
 
 class AskCopilotResponse(BaseModel):
@@ -480,7 +483,12 @@ def _ask_copilot_sync(user_id: str, question: str) -> AskCopilotResponse:
         conn.close()
     return AskCopilotResponse(
         answer=answer.answer,
-        citations=[CitationResponse(message_id=c.message_id, channel_id=c.channel_id) for c in answer.citations],
+        citations=[
+            CitationResponse(
+                message_id=c.message_id, channel_id=c.channel_id, sender_id=c.sender_id, content=c.content, citation_number=c.citation_number
+            )
+            for c in answer.citations
+        ],
     )
 
 

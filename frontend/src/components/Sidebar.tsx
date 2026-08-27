@@ -14,13 +14,14 @@ interface SidebarProps {
   activeChannelId: string | null;
   onSelectChannel: (channelId: string) => void;
   onDirectMessageStarted: (conversation: Conversation) => void;
+  onOpenProfile: () => void;
 }
 
 /** Zona "perfil de usuario" (Fase 17, layout de 3 zonas) vive al pie de esta misma columna
  * junto con la zona de lista de canales — ver App.tsx para cómo se arma el layout completo.
  * La lista de canales vive en App.tsx (fetch único, compartido con el header de ChatPanel). */
-export function Sidebar({ channels, activeChannelId, onSelectChannel, onDirectMessageStarted }: SidebarProps) {
-  const { user, logout } = useAuth();
+export function Sidebar({ channels, activeChannelId, onSelectChannel, onDirectMessageStarted, onOpenProfile }: SidebarProps) {
+  const { user } = useAuth();
   const { t, locale, setLocale } = useI18n();
   const { theme, toggleTheme } = useTheme();
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -185,18 +186,20 @@ export function Sidebar({ channels, activeChannelId, onSelectChannel, onDirectMe
 
       <div className="user-profile">
         <div className="user-profile-identity">
-          <span className="avatar-status-wrap">
+          <button
+            className="avatar-status-wrap avatar-button"
+            onClick={onOpenProfile}
+            aria-label={t("profile.title")}
+            title={t("profile.title")}
+          >
             <Avatar initial={user?.full_name?.charAt(0)} size="sm" />
             <span className="presence-dot online" aria-hidden="true" />
-          </span>
+          </button>
           <div className="user-profile-info">
             <strong>{user?.full_name}</strong>
             <span>{user?.role_title}</span>
           </div>
         </div>
-        <button className="logout-button" onClick={() => void logout()}>
-          {t("sidebar.logout")}
-        </button>
       </div>
     </aside>
   );

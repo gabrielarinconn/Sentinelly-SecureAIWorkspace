@@ -4,6 +4,7 @@ import { LoginScreen } from "./components/LoginScreen";
 import { Sidebar } from "./components/Sidebar";
 import { ChatPanel } from "./components/ChatPanel";
 import { CopilotPanel } from "./components/CopilotPanel";
+import { ProfileScreen } from "./components/ProfileScreen";
 import { api } from "./api/client";
 import type { Conversation } from "./api/types";
 
@@ -12,6 +13,8 @@ export function App() {
   const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
   const [channels, setChannels] = useState<Conversation[] | "loading" | "error">("loading");
   const [copilotOpen, setCopilotOpen] = useState(true);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [jumpTarget, setJumpTarget] = useState<{ channelId: string; messageId: string } | null>(null);
 
   useEffect(() => {
     if (status !== "authenticated") return;
@@ -56,12 +59,19 @@ export function App() {
     setActiveChannelId(conversation.channel_id);
   };
 
+  const onNavigateToMessage = (channelId: string, messageId: string) => {
+    setActiveChannelId(channelId);
+    setJumpTarget({ channelId, messageId });
+  };
+
   if (status === "loading") return <div className="app-loading">…</div>;
   if (status === "anonymous") return <LoginScreen />;
+  if (profileOpen) return <ProfileScreen onBack={() => setProfileOpen(false)} />;
 
   const activeChannel = Array.isArray(channels)
     ? (channels.find((c) => c.channel_id === activeChannelId) ?? null)
     : null;
+  const jumpMessageId = jumpTarget && jumpTarget.channelId === activeChannelId ? jumpTarget.messageId : null;
 
   return (
     <div className={"app-layout" + (copilotOpen ? "" : " copilot-closed")}>
@@ -70,9 +80,16 @@ export function App() {
         activeChannelId={activeChannelId}
         onSelectChannel={setActiveChannelId}
         onDirectMessageStarted={onDirectMessageStarted}
+        onOpenProfile={() => setProfileOpen(true)}
       />
-      <ChatPanel channelId={activeChannelId} channel={activeChannel} onOpenCopilot={() => setCopilotOpen(true)} />
-      {copilotOpen && <CopilotPanel onClose={() => setCopilotOpen(false)} />}
+      <ChatPanel
+        channelId={activeChannelId}
+        channel={activeChannel}
+        onOpenCopilot={() => setCopilotOpen(true)}
+        jumpMessageId={jumpMessageId}
+        onJumpHandled={() => setJumpTarget(null)}
+      />
+      {copilotOpen && <CopilotPanel onClose={() => setCopilotOpen(false)} onNavigateToMessage={onNavigateToMessage} />}
     </div>
   );
 }

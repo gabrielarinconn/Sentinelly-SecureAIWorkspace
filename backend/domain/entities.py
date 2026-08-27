@@ -77,6 +77,9 @@ class LLMCompletion:
 class Citation:
     message_id: str
     channel_id: str
+    sender_id: str
+    content: str
+    citation_number: int
 
 
 @dataclass(frozen=True)

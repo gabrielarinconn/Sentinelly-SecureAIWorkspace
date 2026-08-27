@@ -1,5 +1,6 @@
 import type {
   ApiErrorBody,
+  Citation,
   Conversation,
   CurrentUser,
   DirectoryUser,
@@ -132,7 +133,7 @@ export const api = {
   searchMessages: (query: string, cursor?: string) =>
     request<SearchPage>("/messages/search", { params: { q: query, cursor, limit: 20 } }),
   askCopilot: (question: string) =>
-    request<{ answer: string; citations: { message_id: string; channel_id: string }[] }>("/copilot/ask", {
+    request<{ answer: string; citations: Citation[] }>("/copilot/ask", {
       method: "POST",
       body: { question },
     }),

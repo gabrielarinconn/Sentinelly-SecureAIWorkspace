@@ -68,6 +68,14 @@ export interface SearchPage {
   next_cursor: string | null;
 }
 
+export interface Citation {
+  message_id: string;
+  channel_id: string;
+  sender_id: string;
+  content: string;
+  citation_number: number;
+}
+
 export interface ApiErrorBody {
   error: {
     code: string;

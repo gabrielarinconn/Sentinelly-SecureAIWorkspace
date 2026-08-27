@@ -135,7 +135,29 @@ _Pending._
 
 ## D008 — Realtime approach (WebSocket single-process; sin fallback a polling salvo recorte documentado)
 
-_Pending._
+**Decision:** WebSocket nativo de FastAPI, con un broadcaster pub/sub en memoria
+(`backend/infrastructure/realtime.py`) — un `dict[channel_id, set[asyncio.Queue]]` — dentro
+del mismo proceso que sirve la API. Sin Redis/pub-sub externo, sin polling.
+
+**Context:** el plan exige realtime como criterio de aceptación, con orden estricto
+`request → DB transaction → COMMIT exitoso → evento realtime → clientes conectados`, y
+prohíbe explícitamente sustituirlo por polling salvo recorte documentado.
+
+**Why:** un solo proceso de backend es suficiente para el alcance de esta prueba (el plan lo
+dice explícitamente: "single-process, suficiente para el assessment"). El endpoint
+`POST /channels/{id}/messages` es `async def`; el trabajo de DB corre en threadpool
+(`run_in_threadpool`) y el `broadcaster.publish(...)` se llama **después** de que esa llamada
+retorna — es decir, después de que `authorized_transaction` ya hizo `COMMIT`. Nunca antes.
+
+**Alternatives:** Redis Pub/Sub o Postgres `LISTEN/NOTIFY` (correctos para multi-proceso/
+multi-instancia, pero una infraestructura adicional que el alcance de esta prueba no
+justifica); polling (prohibido explícitamente por el plan salvo recorte documentado — no
+aplica aquí, WebSocket funcionó sin necesidad de recortar nada).
+
+**Trade-off:** si el backend corriera en más de un proceso/worker, un cliente conectado al
+proceso A nunca vería un mensaje publicado desde el proceso B — el broadcaster en memoria no
+escala horizontalmente. Aceptable para el alcance de la prueba; documentado explícitamente
+para que quede claro en la sustentación por qué no es la arquitectura de producción.
 
 ## D009 — message_status vs delivery_status (dominio vs UI)
 

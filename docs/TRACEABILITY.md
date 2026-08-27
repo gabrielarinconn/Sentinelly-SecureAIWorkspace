@@ -18,7 +18,7 @@ Estado: ⬜ pendiente · 🟡 implementado/no demostrado · 🟢 demostrado
 | R09 | Copilot conoce nombre/cargo | JWT claims → server-side context | ⬜ | |
 | R10 | Citas en respuestas del copiloto | prompts/, application/ask_copilot | ⬜ | |
 | R11 | Negativas explícitas | system prompt | ⬜ | |
-| R12 | Realtime (post-COMMIT) | WebSocket | ⬜ | |
+| R12 | Realtime (post-COMMIT) | backend/infrastructure/realtime.py, presentation/api.py | 🟢 | tests/test_fase7_realtime.py (6 tests: broadcast, orden commit-then-publish, non-member rechazado, token inválido rechazado) |
 | R13 | Soft delete + historial | rw_message_history + database/triggers/0001_messages_audit.sql | 🟢 | tests/test_fase6_messages_audit.py (audit trail, physical DELETE blocked, deleted message immutable) |
 | R14 | i18n (ES/EN, sin strings hardcoded) | frontend/i18n/ | ⬜ | |
 | R15 | JWT + refresh + rotation + reuse detection | auth module | ⬜ | |

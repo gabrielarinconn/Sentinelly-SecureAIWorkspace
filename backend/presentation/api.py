@@ -1,10 +1,12 @@
 from typing import Optional
 
-from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect, status
+from fastapi import Depends, FastAPI, Query, WebSocket, WebSocketDisconnect, status
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
 from backend.application.cursor import encode_cursor
+from backend.application.delete_message import DeleteMessageUseCase
+from backend.application.edit_message import EditMessageUseCase
 from backend.application.get_channel_messages import GetChannelMessagesUseCase
 from backend.application.get_current_user import GetCurrentUserUseCase
 from backend.application.issue_refresh_token import IssueRefreshTokenUseCase
@@ -31,8 +33,12 @@ from backend.infrastructure.realtime import broadcaster
 from backend.infrastructure.refresh_token_repository import PsycopgRefreshTokenRepository
 from backend.infrastructure.user_repository import PsycopgUserRepository
 from backend.presentation.auth import get_current_user_id, user_id_from_ws_token
+from backend.presentation.errors import app_error, register_error_handlers
+from backend.presentation.middleware import CorrelationIdMiddleware
 
 app = FastAPI(title="Sentinelly API")
+app.add_middleware(CorrelationIdMiddleware)
+register_error_handlers(app)
 
 
 class LoginRequest(BaseModel):
@@ -58,7 +64,7 @@ def login(body: LoginRequest) -> TokenPairResponse:
         try:
             result = use_case.execute(body.email, body.password)
         except InvalidCredentialsError as exc:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+            raise app_error(status.HTTP_401_UNAUTHORIZED, "INVALID_CREDENTIALS", str(exc)) from exc
         refresh_token = IssueRefreshTokenUseCase(PsycopgRefreshTokenRepository(conn)).execute(result.user_id)
         conn.commit()
     finally:
@@ -79,7 +85,7 @@ def refresh(body: RefreshRequest) -> TokenPairResponse:
             conn.commit()
         except InvalidRefreshTokenError as exc:
             conn.commit()  # persiste la revocación en cascada de reuse detection, si aplicó
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+            raise app_error(status.HTTP_401_UNAUTHORIZED, "INVALID_REFRESH_TOKEN", str(exc)) from exc
     finally:
         conn.close()
     return TokenPairResponse(access_token=result.access_token, refresh_token=result.refresh_token, token_type=result.token_type)
@@ -129,12 +135,64 @@ async def send_message(channel_id: str, body: SendMessageRequest, user_id: str =
     try:
         message = await run_in_threadpool(_send_message_sync, channel_id, user_id, body.content)
     except EmptyMessageError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        raise app_error(422, "EMPTY_MESSAGE", str(exc)) from exc
     except MessageAccessDeniedError as exc:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="MESSAGE_ACCESS_DENIED") from exc
+        raise app_error(status.HTTP_403_FORBIDDEN, "MESSAGE_ACCESS_DENIED", "You do not have access to this channel.") from exc
     # Realtime se emite SOLO después de que run_in_threadpool ya retornó — es decir, después
     # de que authorized_transaction hizo COMMIT. Nunca antes (Fase 7, orden estricto).
-    await broadcaster.publish(channel_id, message.model_dump())
+    await broadcaster.publish(channel_id, {**message.model_dump(), "event": "message_created"})
+    return message
+
+
+class EditMessageRequest(BaseModel):
+    content: str
+
+
+def _edit_message_sync(message_id: str, user_id: str, content: str) -> MessageResponse:
+    conn = get_app_connection()
+    try:
+        with authorized_transaction(conn, user_id):
+            repo = PsycopgMessageRepository(conn)
+            message = EditMessageUseCase(repo).execute(message_id, content)
+    finally:
+        conn.close()
+    return MessageResponse(
+        id=message.id, channel_id=message.channel_id, sender_id=message.sender_id, content=message.content, status=message.status
+    )
+
+
+@app.patch("/messages/{message_id}", response_model=MessageResponse)
+async def edit_message(message_id: str, body: EditMessageRequest, user_id: str = Depends(get_current_user_id)) -> MessageResponse:
+    try:
+        message = await run_in_threadpool(_edit_message_sync, message_id, user_id, body.content)
+    except EmptyMessageError as exc:
+        raise app_error(422, "EMPTY_MESSAGE", str(exc)) from exc
+    except MessageAccessDeniedError as exc:
+        raise app_error(status.HTTP_403_FORBIDDEN, "MESSAGE_ACCESS_DENIED", "You do not have access to this message.") from exc
+    await broadcaster.publish(message.channel_id, {**message.model_dump(), "event": "message_edited"})
+    return message
+
+
+def _delete_message_sync(message_id: str, user_id: str) -> MessageResponse:
+    conn = get_app_connection()
+    try:
+        with authorized_transaction(conn, user_id):
+            repo = PsycopgMessageRepository(conn)
+            message = DeleteMessageUseCase(repo).execute(message_id)
+    finally:
+        conn.close()
+    return MessageResponse(
+        id=message.id, channel_id=message.channel_id, sender_id=message.sender_id, content=message.content, status=message.status
+    )
+
+
+@app.delete("/messages/{message_id}", response_model=MessageResponse)
+async def delete_message(message_id: str, user_id: str = Depends(get_current_user_id)) -> MessageResponse:
+    try:
+        message = await run_in_threadpool(_delete_message_sync, message_id, user_id)
+    except MessageAccessDeniedError as exc:
+        raise app_error(status.HTTP_403_FORBIDDEN, "MESSAGE_ACCESS_DENIED", "You do not have access to this message.") from exc
+    await broadcaster.publish(message.channel_id, {**message.model_dump(), "event": "message_deleted"})
     return message
 
 
@@ -194,7 +252,7 @@ def search_messages(
             try:
                 results = SearchMessagesUseCase(repo).execute(q, cursor, limit)
             except EmptySearchQueryError as exc:
-                raise HTTPException(status_code=422, detail=str(exc)) from exc
+                raise app_error(422, "EMPTY_SEARCH_QUERY", str(exc)) from exc
     finally:
         conn.close()
     next_cursor = encode_cursor(results[-1].created_at, results[-1].id) if len(results) == limit else None
@@ -242,7 +300,7 @@ def get_current_user(user_id: str = Depends(get_current_user_id)) -> UserRespons
         try:
             user = GetCurrentUserUseCase(PsycopgUserRepository(conn)).execute(user_id)
         except InvalidCredentialsError as exc:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+            raise app_error(status.HTTP_401_UNAUTHORIZED, "INVALID_CREDENTIALS", str(exc)) from exc
     finally:
         conn.close()
     return UserResponse(id=user.id, email=user.email, full_name=user.full_name, role_title=user.role_title)

@@ -12,6 +12,12 @@ _RETURNING = "id, channel_id, sender_id, content, message_status, created_at, up
 
 def _row_to_message(row) -> Message:
     id_, channel_id, sender_id, content, status, created_at, updated_at = row
+    # el contenido de un mensaje eliminado nunca se expone, sin importar qué ruta SQL lo trajo
+    # (RETURNING de un UPDATE, o get_channel_messages()) — la columna viva conserva el texto
+    # real para que el trigger de auditoría pueda copiarlo a rw_message_history, pero de cara
+    # a cualquier respuesta de la app un mensaje 'deleted' siempre reporta content=None (R06).
+    if status == "deleted":
+        content = None
     return Message(
         id=str(id_),
         channel_id=str(channel_id),

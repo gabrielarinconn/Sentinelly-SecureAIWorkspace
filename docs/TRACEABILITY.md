@@ -27,5 +27,5 @@ Estado: ⬜ pendiente · 🟡 implementado/no demostrado · 🟢 demostrado
 | R18 | Test: non-member denegado | tests/ | 🟢 | tests/test_fase4_rls_jwt.py, tests/test_fase5_channel_acl.py, tests/test_fase6_messages_audit.py |
 | R19 | Test: RAG no filtra canal privado ajeno | tests/test_fase12_secure_retrieval.py | 🟢 | non-member 0 filas del canal privado ante 3 queries distintas, incluida una que pide explícitamente ese contenido |
 | R20 | Docker compose up (DB+backend+frontend) | docker-compose.yml | ⬜ | |
-| R21 | Correlation ID | middleware + error envelope | ⬜ | |
+| R21 | Correlation ID | backend/presentation/{middleware,errors}.py | 🟢 | tests/test_fase16_api_errors_correlation.py |
 | R22 | Primer commit sin lógica previa | git log | ⬜ | |

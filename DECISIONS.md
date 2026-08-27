@@ -139,7 +139,28 @@ _Pending._
 
 ## D009 — message_status vs delivery_status (dominio vs UI)
 
-_Pending._
+**Decision:** `message_status` (`active`/`edited`/`deleted`) es la única columna persistida en
+`rw_messages` — es el ciclo de vida lógico del mensaje, gobernado por el trigger de auditoría
+(Fase 6). `delivery_status` (`pending`/`sent`/`failed`) **no existe como columna**: es estado
+optimista del frontend (Fase 17) mientras un mensaje viaja al servidor.
+
+**Context:** son dos conceptos que suenan parecidos y es fácil colapsarlos en una sola
+columna por error.
+
+**Why:** una vez el `INSERT` hace `COMMIT`, el mensaje ya es "enviado" por definición — no
+hay un estado intermedio de "enviando" que tenga sentido persistir en la base de datos, ese
+estado solo existe en la UI mientras la request está en vuelo. Mezclarlos crearía una columna
+que necesitaría reflejar tanto el ciclo de vida del dato (permanente, auditado) como el
+estado transitorio de una request HTTP (efímero, por-cliente) — dos cosas con dueños y
+tiempos de vida distintos.
+
+**Alternatives:** una sola columna `status` con valores `pending/sent/active/edited/deleted`
+(descartado — mezclaría estado de red con estado de dominio, y "pending" nunca debería poder
+llegar a persistirse porque significa que el INSERT ni siquiera pasó).
+
+**Trade-off:** el frontend necesita su propio estado local (optimistic UI) para `pending` y
+`failed`, ya que la base de datos nunca los ve — más lógica en el cliente, pero es lógica que
+le corresponde a él, no a la base de datos.
 
 ## D010 — Patrón de diseño aplicado y por qué
 

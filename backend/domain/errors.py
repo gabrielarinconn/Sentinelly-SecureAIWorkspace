@@ -4,3 +4,12 @@ class InvalidCredentialsError(Exception):
 
 class InvalidTokenError(Exception):
     """Token is missing, malformed, expired, or fails signature verification."""
+
+
+class EmptyMessageError(Exception):
+    """Message content is blank."""
+
+
+class MessageAccessDeniedError(Exception):
+    """RLS denied the operation. Deliberately doesn't distinguish 'does not exist' from
+    'exists but not yours' — that distinction itself would leak information (R09)."""

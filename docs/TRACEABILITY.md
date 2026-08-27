@@ -19,12 +19,12 @@ Estado: ⬜ pendiente · 🟡 implementado/no demostrado · 🟢 demostrado
 | R10 | Citas en respuestas del copiloto | prompts/, application/ask_copilot | ⬜ | |
 | R11 | Negativas explícitas | system prompt | ⬜ | |
 | R12 | Realtime (post-COMMIT) | WebSocket | ⬜ | |
-| R13 | Soft delete + historial | rw_message_history + trigger | ⬜ | |
+| R13 | Soft delete + historial | rw_message_history + database/triggers/0001_messages_audit.sql | 🟢 | tests/test_fase6_messages_audit.py (audit trail, physical DELETE blocked, deleted message immutable) |
 | R14 | i18n (ES/EN, sin strings hardcoded) | frontend/i18n/ | ⬜ | |
 | R15 | JWT + refresh + rotation + reuse detection | auth module | ⬜ | |
-| R16 | Clean Architecture (dominio sin FastAPI/driver/SDK) | backend/domain/ | ⬜ | |
+| R16 | Clean Architecture (dominio sin FastAPI/driver/SDK) | backend/domain/ | 🟡 | verificado manualmente (grep de imports); falta test automatizado (Fase 13/20) |
 | R17 | SOLID / patrón justificado | DECISIONS.md | ⬜ | |
-| R18 | Test: non-member denegado | tests/ | ⬜ | |
+| R18 | Test: non-member denegado | tests/ | 🟢 | tests/test_fase4_rls_jwt.py, tests/test_fase5_channel_acl.py, tests/test_fase6_messages_audit.py |
 | R19 | Test: RAG no filtra canal privado ajeno | tests/ | ⬜ | |
 | R20 | Docker compose up (DB+backend+frontend) | docker-compose.yml | ⬜ | |
 | R21 | Correlation ID | middleware + error envelope | ⬜ | |

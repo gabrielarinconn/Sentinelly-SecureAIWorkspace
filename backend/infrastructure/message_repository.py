@@ -1,6 +1,9 @@
+from datetime import datetime
+from typing import Optional
+
 import psycopg
 
-from backend.domain.entities import Message
+from backend.domain.entities import Message, SearchResult
 from backend.domain.errors import MessageAccessDeniedError
 from backend.domain.ports import MessageRepository
 
@@ -66,3 +69,29 @@ class PsycopgMessageRepository(MessageRepository):
         if row is None:
             raise MessageAccessDeniedError("Not authorized to delete this message.")
         return _row_to_message(row)
+
+    def list_by_channel(
+        self, channel_id: str, cursor_created_at: Optional[datetime], cursor_id: Optional[str], limit: int
+    ) -> list[Message]:
+        with self._conn.cursor() as cur:
+            cur.execute(
+                "SELECT * FROM get_channel_messages(%s, %s, %s, %s)",
+                (channel_id, cursor_created_at, cursor_id, limit),
+            )
+            return [_row_to_message(row) for row in cur.fetchall()]
+
+    def search(
+        self, query: str, cursor_created_at: Optional[datetime], cursor_id: Optional[str], limit: int
+    ) -> list[SearchResult]:
+        with self._conn.cursor() as cur:
+            cur.execute(
+                "SELECT * FROM search_messages(%s, %s, %s, %s)",
+                (query, cursor_created_at, cursor_id, limit),
+            )
+            rows = cur.fetchall()
+        return [
+            SearchResult(
+                id=str(id_), channel_id=str(channel_id), sender_id=str(sender_id), headline=headline, created_at=created_at, rank=rank
+            )
+            for id_, channel_id, sender_id, headline, created_at, rank in rows
+        ]

@@ -13,3 +13,7 @@ class EmptyMessageError(Exception):
 class MessageAccessDeniedError(Exception):
     """RLS denied the operation. Deliberately doesn't distinguish 'does not exist' from
     'exists but not yours' — that distinction itself would leak information (R09)."""
+
+
+class EmptySearchQueryError(Exception):
+    """Search query is blank."""

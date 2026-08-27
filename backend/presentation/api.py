@@ -1,10 +1,21 @@
-from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect, status
+from typing import Optional
+
+from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect, status
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
+from backend.application.cursor import encode_cursor
+from backend.application.get_channel_messages import GetChannelMessagesUseCase
 from backend.application.login import LoginUseCase
+from backend.application.search_messages import SearchMessagesUseCase
 from backend.application.send_message import SendMessageUseCase
-from backend.domain.errors import EmptyMessageError, InvalidCredentialsError, InvalidTokenError, MessageAccessDeniedError
+from backend.domain.errors import (
+    EmptyMessageError,
+    EmptySearchQueryError,
+    InvalidCredentialsError,
+    InvalidTokenError,
+    MessageAccessDeniedError,
+)
 from backend.infrastructure.db import authorized_transaction, get_app_connection
 from backend.infrastructure.jwt_service import JwtTokenService
 from backend.infrastructure.message_repository import PsycopgMessageRepository
@@ -53,7 +64,7 @@ class MessageResponse(BaseModel):
     id: str
     channel_id: str
     sender_id: str
-    content: str
+    content: Optional[str]
     status: str
 
 
@@ -82,6 +93,75 @@ async def send_message(channel_id: str, body: SendMessageRequest, user_id: str =
     # de que authorized_transaction hizo COMMIT. Nunca antes (Fase 7, orden estricto).
     await broadcaster.publish(channel_id, message.model_dump())
     return message
+
+
+class PageResponse(BaseModel):
+    items: list[MessageResponse]
+    next_cursor: Optional[str]
+
+
+@app.get("/channels/{channel_id}/messages", response_model=PageResponse)
+def get_channel_messages(
+    channel_id: str,
+    cursor: Optional[str] = None,
+    limit: int = Query(default=50, ge=1, le=200),
+    user_id: str = Depends(get_current_user_id),
+) -> PageResponse:
+    conn = get_app_connection()
+    try:
+        with authorized_transaction(conn, user_id):
+            repo = PsycopgMessageRepository(conn)
+            messages = GetChannelMessagesUseCase(repo).execute(channel_id, cursor, limit)
+    finally:
+        conn.close()
+    next_cursor = encode_cursor(messages[-1].created_at, messages[-1].id) if len(messages) == limit else None
+    return PageResponse(
+        items=[
+            MessageResponse(id=m.id, channel_id=m.channel_id, sender_id=m.sender_id, content=m.content, status=m.status)
+            for m in messages
+        ],
+        next_cursor=next_cursor,
+    )
+
+
+class SearchResultResponse(BaseModel):
+    id: str
+    channel_id: str
+    sender_id: str
+    headline: str
+    rank: float
+
+
+class SearchPageResponse(BaseModel):
+    items: list[SearchResultResponse]
+    next_cursor: Optional[str]
+
+
+@app.get("/messages/search", response_model=SearchPageResponse)
+def search_messages(
+    q: str,
+    cursor: Optional[str] = None,
+    limit: int = Query(default=20, ge=1, le=100),
+    user_id: str = Depends(get_current_user_id),
+) -> SearchPageResponse:
+    conn = get_app_connection()
+    try:
+        with authorized_transaction(conn, user_id):
+            repo = PsycopgMessageRepository(conn)
+            try:
+                results = SearchMessagesUseCase(repo).execute(q, cursor, limit)
+            except EmptySearchQueryError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+    finally:
+        conn.close()
+    next_cursor = encode_cursor(results[-1].created_at, results[-1].id) if len(results) == limit else None
+    return SearchPageResponse(
+        items=[
+            SearchResultResponse(id=r.id, channel_id=r.channel_id, sender_id=r.sender_id, headline=r.headline, rank=r.rank)
+            for r in results
+        ],
+        next_cursor=next_cursor,
+    )
 
 
 def _is_member_sync(channel_id: str, user_id: str) -> bool:

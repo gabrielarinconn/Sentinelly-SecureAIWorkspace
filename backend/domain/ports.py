@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import Optional
 
-from backend.domain.entities import Message, User
+from backend.domain.entities import Message, SearchResult, User
 
 
 class UserRepository(ABC):
@@ -22,6 +23,18 @@ class MessageRepository(ABC):
 
     @abstractmethod
     def soft_delete(self, message_id: str) -> Message: ...
+
+    @abstractmethod
+    def list_by_channel(
+        self, channel_id: str, cursor_created_at: Optional[datetime], cursor_id: Optional[str], limit: int
+    ) -> list[Message]:
+        """Historial paginado por keyset (D005) — get_channel_messages()."""
+
+    @abstractmethod
+    def search(
+        self, query: str, cursor_created_at: Optional[datetime], cursor_id: Optional[str], limit: int
+    ) -> list[SearchResult]:
+        """Búsqueda con highlighting, keyset pagination — search_messages()."""
 
 
 class PasswordHasher(ABC):

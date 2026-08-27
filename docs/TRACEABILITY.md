@@ -12,8 +12,8 @@ Estado: ⬜ pendiente · 🟡 implementado/no demostrado · 🟢 demostrado
 | R03 | Rol app sin BYPASSRLS | database/migrations/0009_app_role.sql | 🟢 | tests/test_fase4_rls_jwt.py::test_app_role_has_no_superuser_or_bypassrls |
 | R04 | Vista de conversaciones (security_invoker) | database/views/ | ⬜ | |
 | R05 | 2 procedimientos (consulta/edición-eliminación usuarios) | database/procedures/ | ⬜ | |
-| R06 | Keyset pagination (no OFFSET) | get_channel_messages() | ⬜ | |
-| R07 | Search + highlighting (ts_headline) | search_messages() | ⬜ | |
+| R06 | Keyset pagination (no OFFSET) | database/functions/0002_get_channel_messages.sql | 🟢 | tests/test_fase8_search_history.py::test_keyset_pagination_never_uses_offset_and_pages_through_all_messages |
+| R07 | Search + highlighting (ts_headline) | database/functions/0003_search_messages.sql | 🟢 | tests/test_fase8_search_history.py (highlight, RLS-scoped, query vacío rechazado) |
 | R08 | RAG autorizado en SQL | retrieve_ai_context() | ⬜ | |
 | R09 | Copilot conoce nombre/cargo | JWT claims → server-side context | ⬜ | |
 | R10 | Citas en respuestas del copiloto | prompts/, application/ask_copilot | ⬜ | |

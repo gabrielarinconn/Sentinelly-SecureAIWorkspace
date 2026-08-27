@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -16,7 +17,17 @@ class Message:
     id: str
     channel_id: str
     sender_id: str
-    content: str
+    content: Optional[str]  # None cuando status == 'deleted' (enmascarado, R06)
     status: str
     created_at: datetime
     updated_at: datetime
+
+
+@dataclass(frozen=True)
+class SearchResult:
+    id: str
+    channel_id: str
+    sender_id: str
+    headline: str
+    created_at: datetime
+    rank: float

@@ -56,6 +56,13 @@ vuelve a pasar en reinicios posteriores). Backend en `http://localhost:8000/docs
 (OpenAPI/Swagger autogenerado por FastAPI). `scripts/migrate.sh`/`seed.sh` no dependen de que
 el backend termine de arrancar — hablan directo con Postgres.
 
+## Documentación de API
+
+`docs/api/openapi.json` — spec OpenAPI 3.1 exportada (importable en Swagger Editor o Postman,
+no requiere el backend corriendo para consultarla). `docs/api/README.md` explica cómo
+regenerarla y documenta los 2 endpoints WebSocket (`/ws/channels/{channel_id}`, `/ws/presence`)
+que el estándar OpenAPI no cubre.
+
 ## Cómo correr en desarrollo (sin Docker para backend/frontend)
 
 ```bash

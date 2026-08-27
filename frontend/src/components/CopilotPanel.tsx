@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useI18n } from "../i18n/I18nContext";
 import { api } from "../api/client";
+import { LoadingDots } from "./LoadingDots";
 
 interface CopilotTurn {
   question: string;
@@ -34,7 +35,12 @@ export function CopilotPanel() {
 
   return (
     <aside className="copilot-panel">
-      <h2>{t("copilot.title")}</h2>
+      <div className="copilot-header">
+        <div>
+          <h2>{t("copilot.title")}</h2>
+          <span className="copilot-subtitle">{t("copilot.subtitle")}</span>
+        </div>
+      </div>
       <div className="copilot-turns">
         {turns.length === 0 && <p className="state-message">{t("copilot.empty")}</p>}
         {turns.map((turn, index) => (
@@ -50,7 +56,12 @@ export function CopilotPanel() {
             )}
           </div>
         ))}
-        {loading && <p className="state-message">{t("copilot.thinking")}</p>}
+        {loading && (
+          <p className="state-message">
+            <LoadingDots />
+            {t("copilot.thinking")}
+          </p>
+        )}
       </div>
       <div className="composer">
         <input

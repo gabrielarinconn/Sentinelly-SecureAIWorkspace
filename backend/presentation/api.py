@@ -17,15 +17,21 @@ from backend.application.get_copilot_usage import GetCopilotUsageUseCase
 from backend.application.get_current_user import GetCurrentUserUseCase
 from backend.application.issue_refresh_token import IssueRefreshTokenUseCase
 from backend.application.list_channels import ListChannelsUseCase
+from backend.application.list_users import ListUsersUseCase
+from backend.application.mark_channel_read import MarkChannelReadUseCase
+from backend.application.start_direct_message import StartDirectMessageUseCase
+from backend.domain.entities import Conversation
 from backend.application.login import LoginUseCase
 from backend.application.logout import LogoutUseCase
 from backend.application.refresh_token import RefreshTokenUseCase
 from backend.application.search_messages import SearchMessagesUseCase
 from backend.application.send_message import SendMessageUseCase
 from backend.domain.errors import (
+    ChannelAccessDeniedError,
     EmptyMessageError,
     EmptySearchQueryError,
     InvalidCredentialsError,
+    InvalidDirectMessageTargetError,
     InvalidRefreshTokenError,
     InvalidTokenError,
     MessageAccessDeniedError,
@@ -39,7 +45,7 @@ from backend.infrastructure.fastembed_provider import FastEmbedProvider
 from backend.infrastructure.jwt_service import JwtTokenService
 from backend.infrastructure.message_repository import PsycopgMessageRepository
 from backend.infrastructure.password_hasher import BcryptPasswordHasher
-from backend.infrastructure.realtime import broadcaster
+from backend.infrastructure.realtime import broadcaster, presence
 from backend.infrastructure.refresh_token_repository import PsycopgRefreshTokenRepository
 from backend.infrastructure.user_repository import PsycopgUserRepository
 from backend.presentation.auth import get_current_user_id, user_id_from_ws_token
@@ -340,9 +346,28 @@ def search_messages(
 
 class ConversationResponse(BaseModel):
     channel_id: str
-    channel_name: str
+    channel_name: Optional[str]
     is_private: bool
     my_role: str
+    member_count: int
+    unread_count: int
+    is_direct: bool
+    dm_peer_id: Optional[str]
+    dm_peer_name: Optional[str]
+
+
+def _conversation_to_response(c: Conversation) -> ConversationResponse:
+    return ConversationResponse(
+        channel_id=c.channel_id,
+        channel_name=c.channel_name,
+        is_private=c.is_private,
+        my_role=c.my_role,
+        member_count=c.member_count,
+        unread_count=c.unread_count,
+        is_direct=c.is_direct,
+        dm_peer_id=c.dm_peer_id,
+        dm_peer_name=c.dm_peer_name,
+    )
 
 
 @app.get("/channels", response_model=list[ConversationResponse])
@@ -353,10 +378,24 @@ def list_channels(user_id: str = Depends(get_current_user_id)) -> list[Conversat
             conversations = ListChannelsUseCase(PsycopgConversationRepository(conn)).execute()
     finally:
         conn.close()
-    return [
-        ConversationResponse(channel_id=c.channel_id, channel_name=c.channel_name, is_private=c.is_private, my_role=c.my_role)
-        for c in conversations
-    ]
+    return [_conversation_to_response(c) for c in conversations]
+
+
+def _mark_channel_read_sync(channel_id: str, user_id: str) -> None:
+    conn = get_app_connection()
+    try:
+        with authorized_transaction(conn, user_id):
+            MarkChannelReadUseCase(PsycopgConversationRepository(conn)).execute(channel_id, user_id)
+    finally:
+        conn.close()
+
+
+@app.post("/channels/{channel_id}/read", status_code=status.HTTP_204_NO_CONTENT)
+async def mark_channel_read(channel_id: str, user_id: str = Depends(get_current_user_id)) -> None:
+    try:
+        await run_in_threadpool(_mark_channel_read_sync, channel_id, user_id)
+    except ChannelAccessDeniedError as exc:
+        raise app_error(status.HTTP_403_FORBIDDEN, "CHANNEL_ACCESS_DENIED", "You do not have access to this channel.") from exc
 
 
 class UserResponse(BaseModel):
@@ -377,6 +416,39 @@ def get_current_user(user_id: str = Depends(get_current_user_id)) -> UserRespons
     finally:
         conn.close()
     return UserResponse(id=user.id, email=user.email, full_name=user.full_name, role_title=user.role_title)
+
+
+@app.get("/users", response_model=list[UserResponse])
+def list_users(search: Optional[str] = Query(default=None), user_id: str = Depends(get_current_user_id)) -> list[UserResponse]:
+    conn = get_app_connection()
+    try:
+        with authorized_transaction(conn, user_id):
+            users = ListUsersUseCase(PsycopgUserRepository(conn)).execute(search, user_id)
+    finally:
+        conn.close()
+    return [UserResponse(id=u.id, email=u.email, full_name=u.full_name, role_title=u.role_title) for u in users]
+
+
+class StartDirectMessageRequest(BaseModel):
+    other_user_id: str
+
+
+def _start_direct_message_sync(other_user_id: str, user_id: str) -> Conversation:
+    conn = get_app_connection()
+    try:
+        with authorized_transaction(conn, user_id):
+            return StartDirectMessageUseCase(PsycopgConversationRepository(conn)).execute(other_user_id)
+    finally:
+        conn.close()
+
+
+@app.post("/dms", response_model=ConversationResponse)
+async def start_direct_message(body: StartDirectMessageRequest, user_id: str = Depends(get_current_user_id)) -> ConversationResponse:
+    try:
+        conversation = await run_in_threadpool(_start_direct_message_sync, body.other_user_id, user_id)
+    except InvalidDirectMessageTargetError as exc:
+        raise app_error(status.HTTP_422_UNPROCESSABLE_ENTITY, "INVALID_DM_TARGET", "Cannot start a direct message with this user.") from exc
+    return _conversation_to_response(conversation)
 
 
 class AskCopilotRequest(BaseModel):
@@ -478,3 +550,47 @@ async def channel_websocket(websocket: WebSocket, channel_id: str, token: str) -
         pass
     finally:
         broadcaster.unsubscribe(channel_id, queue)
+
+
+@app.websocket("/ws/presence")
+async def presence_websocket(websocket: WebSocket, token: str) -> None:
+    """Un único socket global por sesión de cliente (no uno por canal, D008-style
+    single-process) — informa quién está online entre las personas con las que el actor
+    comparte algún canal. No filtra por RLS porque no expone contenido, solo un booleano
+    online/offline por user_id, igual criterio que rw_is_channel_member (functions/0001).
+
+    A diferencia de channel_websocket (que solo envía), este socket corre un receiver en
+    paralelo puramente para detectar el cierre de la conexión cuanto antes: el cliente nunca
+    manda nada por aquí, pero sin leer activamente, un `await websocket.receive()` nunca
+    dispara y un usuario que cierra la pestaña sin que nadie más se conecte/desconecte después
+    quedaría marcado online para siempre (nada volvería a intentar escribirle para revelar que
+    el socket ya está cerrado)."""
+    try:
+        user_id = user_id_from_ws_token(token)
+    except InvalidTokenError:
+        await websocket.close(code=4401)
+        return
+
+    await websocket.accept()
+    await presence.connect(user_id)
+    queue = presence.subscribe()
+
+    async def sender() -> None:
+        await websocket.send_json({"event": "presence_snapshot", "user_ids": presence.online_user_ids()})
+        while True:
+            event = await queue.get()
+            await websocket.send_json(event)
+
+    async def receiver() -> None:
+        while True:
+            await websocket.receive()
+
+    sender_task = asyncio.create_task(sender())
+    receiver_task = asyncio.create_task(receiver())
+    try:
+        await asyncio.wait({sender_task, receiver_task}, return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        sender_task.cancel()
+        receiver_task.cancel()
+        presence.unsubscribe(queue)
+        await presence.disconnect(user_id)

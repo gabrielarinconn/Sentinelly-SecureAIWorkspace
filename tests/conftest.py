@@ -26,6 +26,7 @@ TABLES = (
     "rw_message_history",
     "rw_messages",
     "rw_channel_members",
+    "rw_channel_reads",
     "rw_channels",
     "rw_refresh_tokens",
     "rw_copilot_usage",

@@ -375,3 +375,76 @@ flujo de soporte que lo justifique).
 un bug que reintenta la request de refresh) pierde **todas** sus sesiones activas, no solo
 una — se acepta porque el costo de un falso positivo (volver a loguearse) es mucho menor que
 el costo de un falso negativo (sesión de atacante viva).
+
+## D014 — Mensajes directos: reutilizar rw_channels/rw_channel_members, no una entidad nueva
+
+**Decision:** un DM es una fila más de `rw_channels` con `is_direct = true`, `name = NULL` y
+exactamente 2 filas en `rw_channel_members`. `rw_get_or_create_dm_channel()` (SECURITY
+DEFINER) es la única vía para crearlo.
+
+**Context:** ampliación post-alcance-original pedida explícitamente por el usuario (feature
+de UI, no parte de las 24 fases originales) — mostrar mensajes directos junto a los canales.
+
+**Why:** toda la RLS de `rw_channels`/`rw_messages` (Fase 4/6) ya es genérica por membresía —
+un DM funciona con las policies de SELECT/INSERT/UPDATE existentes sin tocar una sola línea,
+y `send_message`/`get_channel_messages`/`search_messages` funcionan igual para un DM que para
+un canal. Un modelo paralelo (tabla `rw_direct_messages` separada) hubiera duplicado toda esa
+lógica de autorización sin necesidad real.
+
+**Alternatives:** entidad `rw_direct_conversations` independiente con sus propias policies
+(más "correcto" en un dominio más grande, pero D011 ya establece "no crear abstracciones sin
+necesidad concreta" — aquí el canal existente cubre el caso sin fricción).
+
+**Trade-off:** `rw_channels.name` pasó de `NOT NULL` a nullable, y ganó un segundo CHECK
+(`NOT is_direct OR name IS NULL`) — cualquier código futuro que asuma `channel_name` siempre
+presente debe filtrar por `is_direct` primero. `rw_channel_members` sigue sin policy de
+INSERT/UPDATE/DELETE (D011): crear membresías solo es posible a través de la función
+SECURITY DEFINER, nunca por INSERT directo de `rw_app`.
+
+## D015 — Presencia: tracker en memoria de un solo proceso + receiver dedicado para detectar cierre
+
+**Decision:** `PresenceTracker` (mismo criterio single-process que `ChannelBroadcaster`, D008)
+cuenta conexiones activas por usuario. El endpoint `/ws/presence` corre dos tareas
+concurrentes por conexión: un `sender` (reenvía eventos de la cola) y un `receiver` que solo
+hace `await websocket.receive()` en loop, sin usar lo que llega.
+
+**Context:** ampliación post-alcance pedida por el usuario (punto verde online/offline).
+
+**Why:** un socket que solo envía (como ya hacía `channel_websocket`, Fase 7) nunca detecta
+que el cliente cerró la pestaña hasta el próximo intento de `send()` — y si nadie más se
+conecta/desconecta después, ese intento nunca llega, dejando al usuario "online" para
+siempre. Verificado en vivo: sin el `receiver`, cerrar la pestaña de un usuario no bajaba su
+estado ni después de varios segundos; con el `receiver` corriendo en paralelo (que sí dispara
+`WebSocketDisconnect` al primer frame de cierre real del socket), el cambio a offline es
+inmediato. `channel_websocket` tiene la misma limitación de fondo pero ahí es inofensiva (una
+suscripción inerte en un dict en memoria, sin efecto visible) — se documenta aquí, no se
+corrigió ahí, por estar fuera del pedido concreto de esta ronda.
+
+**Alternatives:** heartbeat/ping periódico desde el cliente (más código en el frontend, mismo
+resultado); asumir online mientras el proceso del backend no reinicie (inaceptable, el punto
+verde mentiría indefinidamente).
+
+**Trade-off:** cada conexión de presencia mantiene 2 tareas asyncio en vez de 1 — costo
+trivial para el volumen de esta prueba, pero no escala igual que un enfoque basado en
+heartbeats si el número de conexiones concurrentes creciera mucho.
+
+## D016 — Contador de no leídos: tabla de "última lectura", no un flag por mensaje
+
+**Decision:** `rw_channel_reads (channel_id, user_id, last_read_at)` — un `unread_count` se
+calcula contando mensajes de otros posteriores a `last_read_at`, no marcando cada mensaje
+individual como leído/no leído por usuario.
+
+**Context:** ampliación post-alcance pedida por el usuario (badge de no leídos por canal).
+
+**Why:** una fila por (canal, usuario) escala igual sin importar cuántos mensajes tenga el
+canal — marcar como leído es un solo UPSERT, no un UPDATE masivo sobre N mensajes. Es el mismo
+patrón que usan Slack/Discord internamente.
+
+**Alternatives:** columna `read_by uuid[]` en `rw_messages` (crece sin límite, requiere
+reescribir la fila del mensaje por cada usuario que lo lee); tabla `rw_message_reads
+(message_id, user_id)` de grano fino (permite saber "quién leyó qué mensaje exacto", dato que
+ningún requisito pide y que multiplicaría filas por mensaje × miembro).
+
+**Trade-off:** no hay recibo de lectura por mensaje individual (no se puede responder "¿Alice
+ya vio ESTE mensaje en particular?"), solo "hasta qué instante leyó el canal" — suficiente
+para el badge, no para un check de "visto" estilo WhatsApp.

@@ -41,3 +41,13 @@ class PsycopgUserRepository(UserRepository):
             return None
         id_, email, full_name, role_title, is_active = row
         return User(id=str(id_), email=email, full_name=full_name, role_title=role_title, is_active=is_active)
+
+    def search(self, query: Optional[str]) -> list[User]:
+        with self._conn.cursor() as cur:
+            cur.execute("CALL rw_query_users(%s)", (query,))
+            cur.execute('FETCH ALL FROM "rw_query_users_cursor"')
+            rows = cur.fetchall()
+        return [
+            User(id=str(id_), email=email, full_name=full_name, role_title=role_title, is_active=is_active)
+            for id_, email, full_name, role_title, is_active, _created_at in rows
+        ]

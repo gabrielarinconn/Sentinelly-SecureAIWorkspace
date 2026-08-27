@@ -2,6 +2,7 @@ import type {
   ApiErrorBody,
   Conversation,
   CurrentUser,
+  DirectoryUser,
   Message,
   MessagePage,
   SearchPage,
@@ -119,6 +120,9 @@ export const api = {
   logout: (refresh_token: string) => request<void>("/auth/logout", { method: "POST", body: { refresh_token } }),
   getCurrentUser: () => request<CurrentUser>("/users/me"),
   listChannels: () => request<Conversation[]>("/channels"),
+  markChannelRead: (channelId: string) => request<void>(`/channels/${channelId}/read`, { method: "POST" }),
+  listUsers: (search?: string) => request<DirectoryUser[]>("/users", { params: { search } }),
+  startDirectMessage: (otherUserId: string) => request<Conversation>("/dms", { method: "POST", body: { other_user_id: otherUserId } }),
   getChannelMessages: (channelId: string, cursor?: string) =>
     request<MessagePage>(`/channels/${channelId}/messages`, { params: { cursor, limit: 30 } }),
   sendMessage: (channelId: string, content: string) =>
@@ -140,4 +144,10 @@ export function wsUrlForChannel(channelId: string): string {
   const tokens = getStoredTokens();
   const base = (import.meta.env.VITE_WS_BASE_URL ?? "ws://localhost:8000") as string;
   return `${base}/ws/channels/${channelId}?token=${encodeURIComponent(tokens?.access_token ?? "")}`;
+}
+
+export function wsUrlForPresence(): string {
+  const tokens = getStoredTokens();
+  const base = (import.meta.env.VITE_WS_BASE_URL ?? "ws://localhost:8000") as string;
+  return `${base}/ws/presence?token=${encodeURIComponent(tokens?.access_token ?? "")}`;
 }

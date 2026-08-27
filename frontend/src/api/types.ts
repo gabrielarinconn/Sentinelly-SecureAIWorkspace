@@ -13,9 +13,21 @@ export interface CurrentUser {
 
 export interface Conversation {
   channel_id: string;
-  channel_name: string;
+  channel_name: string | null;
   is_private: boolean;
   my_role: string;
+  member_count: number;
+  unread_count: number;
+  is_direct: boolean;
+  dm_peer_id: string | null;
+  dm_peer_name: string | null;
+}
+
+export interface DirectoryUser {
+  id: string;
+  email: string;
+  full_name: string;
+  role_title: string;
 }
 
 export type MessageStatus = "active" | "edited" | "deleted";

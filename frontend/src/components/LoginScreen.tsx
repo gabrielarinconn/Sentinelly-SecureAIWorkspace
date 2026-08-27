@@ -27,8 +27,15 @@ export function LoginScreen() {
   return (
     <div className="login-screen">
       <form className="login-card" onSubmit={handleSubmit}>
-        <h1>{t("login.title")}</h1>
-        <p className="login-subtitle">{t("login.subtitle")}</p>
+        <div className="brand-row">
+          <span className="brand-mark" aria-hidden="true">
+            🛡️
+          </span>
+          <div>
+            <h1>{t("login.title")}</h1>
+            <p className="login-subtitle">{t("login.subtitle")}</p>
+          </div>
+        </div>
         <label>
           {t("login.email")}
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />

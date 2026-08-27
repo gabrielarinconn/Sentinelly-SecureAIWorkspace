@@ -22,12 +22,29 @@ class UserRepository(ABC):
     @abstractmethod
     def find_by_id(self, user_id: str) -> Optional[User]: ...
 
+    @abstractmethod
+    def search(self, query: Optional[str]) -> list[User]:
+        """rw_query_users (Fase 9): directorio abierto a cualquier usuario autenticado, usado
+        para elegir con quién iniciar un mensaje directo."""
+
 
 class ConversationRepository(ABC):
     @abstractmethod
     def list_for_actor(self) -> list[Conversation]:
         """view_user_conversations ya filtra por app.current_user_id (security_invoker) —
         no recibe un user_id como parámetro, el actor viene de la transacción."""
+
+    @abstractmethod
+    def mark_channel_read(self, channel_id: str, user_id: str) -> None:
+        """UPSERT sobre rw_channel_reads. user_id viene del JWT verificado (nunca del body,
+        mismo criterio que sender_id en SendMessageUseCase) — RLS (rw_channel_reads_own_insert)
+        además exige que sea el actor de la transacción y que sea miembro del canal."""
+
+    @abstractmethod
+    def get_or_create_dm(self, other_user_id: str) -> Conversation:
+        """rw_get_or_create_dm_channel (SECURITY DEFINER) crea o reutiliza el canal DM; el
+        actor viene de current_setting('app.current_user_id') dentro de la función, nunca de
+        un parámetro que el caller pudiera manipular."""
 
 
 class MessageRepository(ABC):

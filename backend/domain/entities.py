@@ -40,6 +40,11 @@ class Conversation:
     is_private: bool
     my_role: str
     last_message_at: Optional[datetime]
+    member_count: int
+    unread_count: int
+    is_direct: bool
+    dm_peer_id: Optional[str]
+    dm_peer_name: Optional[str]
 
 
 @dataclass(frozen=True)

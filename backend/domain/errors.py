@@ -19,5 +19,13 @@ class EmptySearchQueryError(Exception):
     """Search query is blank."""
 
 
+class ChannelAccessDeniedError(Exception):
+    """RLS denied a channel-scoped operation (e.g. marking it as read) for a non-member."""
+
+
+class InvalidDirectMessageTargetError(Exception):
+    """rw_get_or_create_dm_channel rejected the target: self-DM or an inactive/unknown user."""
+
+
 class InvalidRefreshTokenError(Exception):
     """Refresh token not recognized, expired, or reused after being revoked (Fase 15)."""

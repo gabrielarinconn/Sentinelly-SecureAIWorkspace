@@ -5,6 +5,7 @@ erDiagram
         varchar password_hash "not null, never plaintext"
         varchar full_name "not null"
         varchar role_title "cargo, not null"
+        boolean is_active "not null, default true, soft delete (D004)"
         timestamptz created_at
         timestamptz updated_at
     }

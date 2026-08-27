@@ -5,10 +5,11 @@
       "description": "Identidad, credenciales y datos del usuario autenticado.",
       "attributes": [
         { "name": "id", "type": "uuid", "key": "PK" },
-        { "name": "email", "type": "varchar", "key": "UK", "nullable": false },
+        { "name": "email", "type": "varchar", "key": "partial unique index WHERE is_active", "nullable": false, "note": "único solo entre usuarios activos (D004)" },
         { "name": "password_hash", "type": "varchar", "nullable": false, "note": "hash seguro, nunca texto plano" },
         { "name": "full_name", "type": "varchar", "nullable": false },
         { "name": "role_title", "type": "varchar", "nullable": false, "note": "cargo, usado por el copiloto (D012)" },
+        { "name": "is_active", "type": "boolean", "nullable": false, "default": true, "note": "soft delete de usuarios (D004)" },
         { "name": "created_at", "type": "timestamptz", "nullable": false },
         { "name": "updated_at", "type": "timestamptz", "nullable": false }
       ]

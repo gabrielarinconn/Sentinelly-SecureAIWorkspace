@@ -37,11 +37,50 @@ _Pending._
 
 ## D004 — Soft delete
 
-_Pending._
+**Decision:** ningún `DELETE` físico sobre `rw_messages` ni sobre `rw_users`. Los mensajes
+usan `message_status` (`active`/`edited`/`deleted`); los usuarios usan `is_active`.
+
+**Context:** el plan lo exige explícitamente para mensajes ("nunca `DELETE FROM
+rw_messages`"). La segunda de las dos stored procedures obligatorias (Fase 9) es "edición y
+eliminación de usuarios" — había que decidir si esa "eliminación" es física o lógica.
+
+**Why:** físicamente borrar un usuario que ya envió mensajes rompería la integridad
+referencial de `rw_messages.sender_id` y `rw_message_history.changed_by` (accountability de
+auditoría, R07), o forzaría un `ON DELETE CASCADE` que borraría en cascada la conversación —
+justo lo que R06/R07 prohíben. Se optó por tratar la "eliminación de usuarios" como
+desactivación (`is_active = false`), consistente con el mismo patrón que mensajes.
+
+**Alternatives:** `DELETE` real con `ON DELETE SET NULL` en `sender_id` (perdería quién envió
+cada mensaje, inaceptable para auditoría); anonimizar campos en vez de un flag `is_active`
+(más complejo, sin beneficio adicional para el alcance de la prueba).
+
+**Trade-off:** un email "liberado" al desactivar un usuario podría ser reclamado por otra
+persona — se acepta porque el índice único parcial (`rw_users_email_active_uk`, Fase 3) solo
+exige unicidad entre usuarios activos, y es el comportamiento esperado en un sistema real
+(alguien se va, el email queda libre). A nivel de esquema, ambas tablas quedan reforzadas con
+`ON DELETE RESTRICT` desde `rw_messages`/`rw_message_history` hacia `rw_users`, para que un
+intento accidental de `DELETE FROM rw_users` falle en vez de cascadear silenciosamente.
 
 ## D005 — Keyset pagination
 
-_Pending._
+**Decision:** toda paginación de mensajes usa cursor `(created_at, id)` + `limit`, nunca
+`OFFSET`.
+
+**Context:** requisito explícito del plan ("nunca paginación con OFFSET"); aplica a
+`get_channel_messages()` y `search_messages()` (Fases 8 y 11).
+
+**Why:** `OFFSET N` degrada linealmente con `N` (Postgres igual escanea y descarta las
+primeras `N` filas) y es inestable si llegan mensajes nuevos entre páginas (filas que se
+desplazan, duplicados o saltos). Keyset (`WHERE (created_at, id) < (cursor_ts, cursor_id)
+ORDER BY created_at DESC, id DESC LIMIT n`) usa el índice directamente y es estable ante
+inserciones concurrentes.
+
+**Alternatives:** `OFFSET`/`LIMIT` (descartado, prohibido explícitamente); cursor solo por
+`id` (descartado — con UUID v4 el orden de `id` no coincide con el orden de inserción, D001).
+
+**Trade-off:** no se puede saltar directamente a "la página 5" — solo avanzar/retroceder
+desde un cursor conocido. Aceptable: el frontend (Fase 17) es scroll infinito, no paginación
+numerada.
 
 ## D006 — Async embeddings (trigger híbrido)
 

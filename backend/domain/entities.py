@@ -31,3 +31,12 @@ class SearchResult:
     headline: str
     created_at: datetime
     rank: float
+
+
+@dataclass(frozen=True)
+class Conversation:
+    channel_id: str
+    channel_name: str
+    is_private: bool
+    my_role: str
+    last_message_at: Optional[datetime]

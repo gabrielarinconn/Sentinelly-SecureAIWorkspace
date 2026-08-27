@@ -6,6 +6,8 @@ from pydantic import BaseModel
 
 from backend.application.cursor import encode_cursor
 from backend.application.get_channel_messages import GetChannelMessagesUseCase
+from backend.application.get_current_user import GetCurrentUserUseCase
+from backend.application.list_channels import ListChannelsUseCase
 from backend.application.login import LoginUseCase
 from backend.application.search_messages import SearchMessagesUseCase
 from backend.application.send_message import SendMessageUseCase
@@ -16,6 +18,7 @@ from backend.domain.errors import (
     InvalidTokenError,
     MessageAccessDeniedError,
 )
+from backend.infrastructure.conversation_repository import PsycopgConversationRepository
 from backend.infrastructure.db import authorized_transaction, get_app_connection
 from backend.infrastructure.jwt_service import JwtTokenService
 from backend.infrastructure.message_repository import PsycopgMessageRepository
@@ -162,6 +165,47 @@ def search_messages(
         ],
         next_cursor=next_cursor,
     )
+
+
+class ConversationResponse(BaseModel):
+    channel_id: str
+    channel_name: str
+    is_private: bool
+    my_role: str
+
+
+@app.get("/channels", response_model=list[ConversationResponse])
+def list_channels(user_id: str = Depends(get_current_user_id)) -> list[ConversationResponse]:
+    conn = get_app_connection()
+    try:
+        with authorized_transaction(conn, user_id):
+            conversations = ListChannelsUseCase(PsycopgConversationRepository(conn)).execute()
+    finally:
+        conn.close()
+    return [
+        ConversationResponse(channel_id=c.channel_id, channel_name=c.channel_name, is_private=c.is_private, my_role=c.my_role)
+        for c in conversations
+    ]
+
+
+class UserResponse(BaseModel):
+    id: str
+    email: str
+    full_name: str
+    role_title: str
+
+
+@app.get("/users/me", response_model=UserResponse)
+def get_current_user(user_id: str = Depends(get_current_user_id)) -> UserResponse:
+    conn = get_app_connection()
+    try:
+        try:
+            user = GetCurrentUserUseCase(PsycopgUserRepository(conn)).execute(user_id)
+        except InvalidCredentialsError as exc:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+    finally:
+        conn.close()
+    return UserResponse(id=user.id, email=user.email, full_name=user.full_name, role_title=user.role_title)
 
 
 def _is_member_sync(channel_id: str, user_id: str) -> bool:

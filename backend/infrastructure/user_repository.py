@@ -29,3 +29,15 @@ class PsycopgUserRepository(UserRepository):
         user_id, user_email, full_name, role_title, is_active, password_hash = row
         user = User(id=str(user_id), email=user_email, full_name=full_name, role_title=role_title, is_active=is_active)
         return user, password_hash
+
+    def find_by_id(self, user_id: str) -> Optional[User]:
+        with self._conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, email, full_name, role_title, is_active FROM rw_users WHERE id = %s AND is_active = true",
+                (user_id,),
+            )
+            row = cur.fetchone()
+        if row is None:
+            return None
+        id_, email, full_name, role_title, is_active = row
+        return User(id=str(id_), email=email, full_name=full_name, role_title=role_title, is_active=is_active)

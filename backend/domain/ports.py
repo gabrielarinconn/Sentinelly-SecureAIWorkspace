@@ -2,13 +2,23 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Optional
 
-from backend.domain.entities import Message, SearchResult, User
+from backend.domain.entities import Conversation, Message, SearchResult, User
 
 
 class UserRepository(ABC):
     @abstractmethod
     def find_by_email(self, email: str) -> Optional[tuple[User, str]]:
         """Returns (user, password_hash) for an active user, or None if not found."""
+
+    @abstractmethod
+    def find_by_id(self, user_id: str) -> Optional[User]: ...
+
+
+class ConversationRepository(ABC):
+    @abstractmethod
+    def list_for_actor(self) -> list[Conversation]:
+        """view_user_conversations ya filtra por app.current_user_id (security_invoker) —
+        no recibe un user_id como parámetro, el actor viene de la transacción."""
 
 
 class MessageRepository(ABC):

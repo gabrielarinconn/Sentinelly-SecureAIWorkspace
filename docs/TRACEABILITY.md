@@ -7,7 +7,7 @@ Estado: ⬜ pendiente · 🟡 implementado/no demostrado · 🟢 demostrado
 
 | ID  | Requisito | Implementación | Estado | Evidencia |
 |-----|-----------|-----------------|--------|-----------|
-| R01 | Modelo 3FN | docs/erd/normalization.md, ERD.pdf, database/migrations/ | 🟡 | DDL corre desde cero, constraints verificadas manualmente (Fase 3); falta test automatizado (Fase 20) |
+| R01 | Modelo 3FN | docs/erd/normalization.md, ERD.pdf, database/migrations/ | 🟢 | tests/test_normalization_3nf.py (PK explícita en toda tabla rw_, ninguna tabla copia atributos de otra entidad — 3FN —, rw_messages solo referencia por FK, 'role' depende del par completo (channel_id, user_id) — 2FN, con datos reales) |
 | R02 | RLS activo (canales/mensajes) | database/policies/0001_channels_messages_rls.sql | 🟢 | tests/test_fase4_rls_jwt.py (member/non-member/fail-closed, 4 tests) |
 | R03 | Rol app sin BYPASSRLS | database/migrations/0009_app_role.sql | 🟢 | tests/test_fase4_rls_jwt.py::test_app_role_has_no_superuser_or_bypassrls |
 | R04 | Vista de conversaciones (security_invoker) | database/views/0001_user_conversations.sql | 🟢 | tests/test_fase9_conversations_procedures.py (Alice ve 1 canal, Bob ve 2, roles correctos) |

@@ -7,7 +7,25 @@ Registro de decisiones de diseño no triviales y recortes de alcance. Formato po
 
 ## D001 — UUID vs serial
 
-_Pending._
+**Decision:** todas las PK son `uuid` (generadas en la aplicación o con `gen_random_uuid()`),
+no `serial`/`bigserial`.
+
+**Context:** el `user_id` viaja en el JWT y se expone en la URL/respuestas de la API
+(`/channels/{id}/messages`, `/messages/{id}`, etc.).
+
+**Why:** un ID secuencial (`serial`) permite enumeración — un atacante autenticado puede
+iterar `channel_id=1,2,3...` y sondear la existencia de canales/mensajes ajenos aunque RLS
+bloquee el contenido, filtrando metadata (existencia, volumen de datos). UUID v4 no es
+adivinable. También evita colisiones si en el futuro se necesita generar IDs fuera de una
+única secuencia centralizada (p. ej. en el cliente, en tests, en un seed reproducible).
+
+**Alternatives:** `bigserial` con verificación de acceso siempre antes de exponer cualquier
+dato (mitiga pero no elimina el problema de enumeración); `serial` + UUID público separado
+(complejidad extra sin beneficio real para el alcance de esta prueba).
+
+**Trade-off:** UUID ocupa más espacio en disco/índices que un entero (16 bytes vs 4-8), y no
+tiene orden natural de inserción — por eso la keyset pagination (D005) usa `(created_at, id)`
+como cursor compuesto, no solo `id`.
 
 ## D002 — PostgreSQL como security boundary
 

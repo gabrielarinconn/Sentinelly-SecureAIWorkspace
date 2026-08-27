@@ -1,0 +1,74 @@
+erDiagram
+    rw_users {
+        uuid id PK
+        varchar email UK "unique, not null"
+        varchar password_hash "not null, never plaintext"
+        varchar full_name "not null"
+        varchar role_title "cargo, not null"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    rw_channels {
+        uuid id PK
+        varchar name "not null"
+        boolean is_private "not null, default false"
+        uuid created_by FK "rw_users.id, nullable on delete set null"
+        timestamptz created_at
+    }
+
+    rw_channel_members {
+        uuid channel_id PK,FK "rw_channels.id"
+        uuid user_id PK,FK "rw_users.id"
+        varchar role "owner | member"
+        timestamptz joined_at
+    }
+
+    rw_messages {
+        uuid id PK
+        uuid channel_id FK "rw_channels.id, not null"
+        uuid sender_id FK "rw_users.id, not null"
+        text content "not null"
+        varchar message_status "active | edited | deleted"
+        tsvector search_vector "maintained by trigger, Fase 8"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    rw_message_history {
+        uuid id PK
+        uuid message_id FK "rw_messages.id, not null"
+        text previous_content "not null"
+        varchar previous_status "not null"
+        varchar action "edit | delete"
+        uuid changed_by FK "rw_users.id, not null"
+        timestamptz changed_at
+    }
+
+    rw_message_embeddings {
+        uuid message_id PK,FK "rw_messages.id, 1:1"
+        vector embedding "pgvector, dimension per provider"
+        varchar status "pending | completed | failed"
+        timestamptz updated_at
+    }
+
+    rw_refresh_tokens {
+        uuid id PK
+        uuid user_id FK "rw_users.id, not null"
+        varchar token_hash UK "not null, unique, never plaintext"
+        timestamptz expires_at "not null"
+        timestamptz revoked_at "nullable"
+        uuid replaced_by_token_id FK "self-reference, nullable, rotation chain"
+        timestamptz created_at
+    }
+
+    rw_users ||--o{ rw_channel_members : "belongs to (R01)"
+    rw_channels ||--o{ rw_channel_members : "has members (R02)"
+    rw_users ||--o{ rw_channels : "creates (optional)"
+    rw_channels ||--o{ rw_messages : "contains"
+    rw_users ||--o{ rw_messages : "sends"
+    rw_messages ||--o{ rw_message_history : "audited by (R07)"
+    rw_users ||--o{ rw_message_history : "changed by"
+    rw_messages ||--o| rw_message_embeddings : "embedded for RAG (R05)"
+    rw_users ||--o{ rw_refresh_tokens : "authenticates via"
+    rw_refresh_tokens ||--o| rw_refresh_tokens : "rotated into"

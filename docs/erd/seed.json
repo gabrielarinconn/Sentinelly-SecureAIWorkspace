@@ -1,0 +1,112 @@
+{
+  "entities": [
+    {
+      "name": "rw_users",
+      "description": "Identidad, credenciales y datos del usuario autenticado.",
+      "attributes": [
+        { "name": "id", "type": "uuid", "key": "PK" },
+        { "name": "email", "type": "varchar", "key": "UK", "nullable": false },
+        { "name": "password_hash", "type": "varchar", "nullable": false, "note": "hash seguro, nunca texto plano" },
+        { "name": "full_name", "type": "varchar", "nullable": false },
+        { "name": "role_title", "type": "varchar", "nullable": false, "note": "cargo, usado por el copiloto (D012)" },
+        { "name": "created_at", "type": "timestamptz", "nullable": false },
+        { "name": "updated_at", "type": "timestamptz", "nullable": false }
+      ]
+    },
+    {
+      "name": "rw_channels",
+      "description": "Canales de conversación, públicos o privados.",
+      "attributes": [
+        { "name": "id", "type": "uuid", "key": "PK" },
+        { "name": "name", "type": "varchar", "nullable": false },
+        { "name": "is_private", "type": "boolean", "nullable": false, "default": false },
+        { "name": "created_by", "type": "uuid", "key": "FK -> rw_users.id", "nullable": true },
+        { "name": "created_at", "type": "timestamptz", "nullable": false }
+      ]
+    },
+    {
+      "name": "rw_channel_members",
+      "description": "Relación N:N user<->channel; tabla que RLS usa para decidir membresía (R03).",
+      "attributes": [
+        { "name": "channel_id", "type": "uuid", "key": "PK, FK -> rw_channels.id" },
+        { "name": "user_id", "type": "uuid", "key": "PK, FK -> rw_users.id" },
+        { "name": "role", "type": "varchar", "nullable": false, "enum": ["owner", "member"] },
+        { "name": "joined_at", "type": "timestamptz", "nullable": false }
+      ]
+    },
+    {
+      "name": "rw_messages",
+      "description": "Mensajes enviados a un canal. Nunca DELETE físico (R06).",
+      "attributes": [
+        { "name": "id", "type": "uuid", "key": "PK" },
+        { "name": "channel_id", "type": "uuid", "key": "FK -> rw_channels.id", "nullable": false },
+        { "name": "sender_id", "type": "uuid", "key": "FK -> rw_users.id", "nullable": false },
+        { "name": "content", "type": "text", "nullable": false },
+        { "name": "message_status", "type": "varchar", "nullable": false, "enum": ["active", "edited", "deleted"] },
+        { "name": "search_vector", "type": "tsvector", "note": "mantenido por trigger, Fase 8" },
+        { "name": "created_at", "type": "timestamptz", "nullable": false },
+        { "name": "updated_at", "type": "timestamptz", "nullable": false }
+      ]
+    },
+    {
+      "name": "rw_message_history",
+      "description": "Auditoría de estados previos de un mensaje (R07), poblada por trigger BEFORE UPDATE.",
+      "attributes": [
+        { "name": "id", "type": "uuid", "key": "PK" },
+        { "name": "message_id", "type": "uuid", "key": "FK -> rw_messages.id", "nullable": false },
+        { "name": "previous_content", "type": "text", "nullable": false },
+        { "name": "previous_status", "type": "varchar", "nullable": false },
+        { "name": "action", "type": "varchar", "nullable": false, "enum": ["edit", "delete"] },
+        { "name": "changed_by", "type": "uuid", "key": "FK -> rw_users.id", "nullable": false },
+        { "name": "changed_at", "type": "timestamptz", "nullable": false }
+      ]
+    },
+    {
+      "name": "rw_message_embeddings",
+      "description": "Vector pgvector por mensaje para retrieval del copiloto (R05). Pipeline asíncrono (Fase 10).",
+      "attributes": [
+        { "name": "message_id", "type": "uuid", "key": "PK, FK -> rw_messages.id" },
+        { "name": "embedding", "type": "vector", "note": "dimensión según proveedor de embeddings" },
+        { "name": "status", "type": "varchar", "nullable": false, "enum": ["pending", "completed", "failed"] },
+        { "name": "updated_at", "type": "timestamptz", "nullable": false }
+      ]
+    },
+    {
+      "name": "rw_refresh_tokens",
+      "description": "Refresh tokens hasheados con rotación y revocación (Fase 15).",
+      "attributes": [
+        { "name": "id", "type": "uuid", "key": "PK" },
+        { "name": "user_id", "type": "uuid", "key": "FK -> rw_users.id", "nullable": false },
+        { "name": "token_hash", "type": "varchar", "key": "UK", "nullable": false, "note": "nunca texto plano" },
+        { "name": "expires_at", "type": "timestamptz", "nullable": false },
+        { "name": "revoked_at", "type": "timestamptz", "nullable": true },
+        { "name": "replaced_by_token_id", "type": "uuid", "key": "FK -> rw_refresh_tokens.id", "nullable": true, "note": "cadena de rotación, self-reference" },
+        { "name": "created_at", "type": "timestamptz", "nullable": false }
+      ]
+    }
+  ],
+  "relationships": [
+    { "from": "rw_users", "to": "rw_channel_members", "type": "1:N", "rule": "R01" },
+    { "from": "rw_channels", "to": "rw_channel_members", "type": "1:N", "rule": "R02" },
+    { "from": "rw_users", "to": "rw_channels", "type": "1:N", "note": "created_by, opcional" },
+    { "from": "rw_channels", "to": "rw_messages", "type": "1:N" },
+    { "from": "rw_users", "to": "rw_messages", "type": "1:N", "note": "sender_id" },
+    { "from": "rw_messages", "to": "rw_message_history", "type": "1:N", "rule": "R07" },
+    { "from": "rw_users", "to": "rw_message_history", "type": "1:N", "note": "changed_by" },
+    { "from": "rw_messages", "to": "rw_message_embeddings", "type": "1:0..1", "rule": "R05" },
+    { "from": "rw_users", "to": "rw_refresh_tokens", "type": "1:N" },
+    { "from": "rw_refresh_tokens", "to": "rw_refresh_tokens", "type": "0..1:0..1", "note": "replaced_by_token_id, cadena de rotación" }
+  ],
+  "business_rules": [
+    "R01 — A user can belong to multiple channels.",
+    "R02 — A channel can have multiple members.",
+    "R03 — Only channel members can read channel messages.",
+    "R04 — Only authorized users can search messages.",
+    "R05 — The AI can only retrieve messages from channels accessible to the authenticated user.",
+    "R06 — Messages cannot be physically deleted.",
+    "R07 — Previous message states must be preserved.",
+    "R08 — The authenticated user is obtained from the JWT.",
+    "R09 — Database authorization is the final security boundary.",
+    "R10 — Chat content is untrusted data."
+  ]
+}

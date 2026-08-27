@@ -2,6 +2,8 @@ fastapi==0.115.0
 uvicorn[standard]==0.31.0
 psycopg[binary]==3.2.3
 pgvector==0.3.6
+openai==1.54.4
+fastembed==0.4.2
 pyjwt==2.9.0
 bcrypt==4.2.0
 python-dotenv==1.0.1

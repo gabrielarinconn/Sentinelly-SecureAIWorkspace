@@ -161,7 +161,32 @@ en el mismo sentido que los mensajes.
 
 ## D007 — LLMProvider abstraction (interfaz mínima, un proveedor real)
 
-_Pending._
+**Decision:** dos interfaces mínimas en `domain/ports.py` (`LLMProvider.complete()`,
+`EmbeddingProvider.embed()`), cada una con **una** implementación real detrás:
+`DeepSeekLLMProvider` (chat, vía el SDK de OpenAI apuntado a `api.deepseek.com` — DeepSeek es
+compatible con ese formato, así que no hace falta un SDK propio) y `FastEmbedProvider`
+(embeddings, local, `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`, sin API
+key ni red).
+
+**Context:** el usuario paga DeepSeek y quería reusar esa cuenta; DeepSeek no ofrece API de
+embeddings (verificado contra su documentación oficial), así que el LLM y los embeddings
+terminaron siendo dos proveedores *reales* distintos detrás de dos interfaces distintas — no
+un único "proveedor" multiproducto.
+
+**Why:** cada interfaz sigue teniendo exactamente una implementación real, que es la regla
+que pide el plan ("interfaz pequeña, un solo proveedor real detrás") — tener dos interfaces
+en vez de una no es sobre-abstracción, son dos capacidades genuinamente distintas (generar
+texto vs. generar vectores) que ya existían como conceptos separados desde el diseño original
+(Fase 10 ya tenía `EmbeddingProvider` antes de que `LLMProvider` se implementara).
+
+**Alternatives:** OpenAI para ambos (un solo proveedor, pero requiere una segunda cuenta/API
+key que el usuario no tenía — ver conversación de la Fase 18); forzar a DeepSeek a hacer
+embeddings de alguna forma (no existe ese endpoint, no es una opción real).
+
+**Trade-off:** el proveedor de embeddings corre local (CPU, ~220MB de modelo cacheado en
+disco) en vez de ser una llamada de red — más lento en frío (~3s la primera vez que se
+instancia el proceso) pero sin costo y sin key adicional; ver también D006 (por qué el
+worker ya corre en segundo plano, así que este costo nunca lo paga una request de usuario).
 
 ## D008 — Realtime approach (WebSocket single-process; sin fallback a polling salvo recorte documentado)
 
@@ -299,7 +324,28 @@ los access tokens viven poco (`JWT_ACCESS_TOKEN_EXPIRES_MINUTES=15`).
 
 ## D012 — Origen de nombre/cargo del usuario en el copiloto (JWT claims vs lookup server-side)
 
-_Pending._
+**Decision: Opción B, lookup server-side.** `AskCopilotUseCase` recibe el `user_id` (del JWT
+verificado, como siempre) y hace `UserRepository.find_by_id(user_id)` para obtener
+`full_name`/`role_title` frescos de `rw_users` en cada pregunta — nunca los toma de claims
+del JWT.
+
+**Context:** el JWT de este proyecto (Fase 4) se diseñó deliberadamente mínimo (`sub` + claims
+estándar) para no adelantar esta decisión antes de tiempo. Con el copiloto ya en construcción,
+tocaba elegir.
+
+**Why:** `GetCurrentUserUseCase`/`PsycopgUserRepository.find_by_id()` ya existían (Fase 14,
+para `GET /users/me`) — reusarlos para el copiloto es cero código nuevo de infraestructura.
+Además, evita el problema real de la Opción A: si el cargo de alguien cambia, un JWT de
+Opción A quedaría desactualizado hasta el próximo login/refresh (hasta
+`JWT_ACCESS_TOKEN_EXPIRES_MINUTES=15`), mientras que el lookup server-side siempre refleja
+`rw_users` tal como está en ese instante.
+
+**Alternatives:** Opción A (claims en el JWT) — evita una query por pregunta, pero introduce
+staleness y hubiera obligado a rediseñar el JWT ya construido en la Fase 4.
+
+**Trade-off:** una query adicional a `rw_users` por cada pregunta al copiloto — no es RLS (esa
+tabla no la tiene, Fase 4/5), así que es una consulta barata por PK; irrelevante frente al
+costo de la llamada al LLM que de todos modos ocurre en la misma request.
 
 ---
 

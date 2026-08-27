@@ -49,3 +49,39 @@ class RefreshTokenRecord:
     revoked_at: Optional[datetime]
     replaced_by_token_id: Optional[str]
     expires_at: datetime
+
+
+@dataclass(frozen=True)
+class RetrievedContext:
+    message_id: str
+    channel_id: str
+    sender_id: str
+    content: str
+    created_at: datetime
+    similarity: float
+
+
+@dataclass(frozen=True)
+class LLMCompletion:
+    text: str
+    prompt_tokens: int
+    completion_tokens: int
+
+
+@dataclass(frozen=True)
+class Citation:
+    message_id: str
+    channel_id: str
+
+
+@dataclass(frozen=True)
+class CopilotAnswer:
+    answer: str
+    citations: list[Citation]
+
+
+@dataclass(frozen=True)
+class CopilotUsage:
+    total_questions: int
+    total_prompt_tokens: int
+    total_completion_tokens: int

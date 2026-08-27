@@ -20,6 +20,7 @@ TABLES = (
     "rw_channel_members",
     "rw_channels",
     "rw_refresh_tokens",
+    "rw_copilot_usage",
     "rw_users",
 )
 
@@ -32,3 +33,13 @@ def _reset_database_to_seed():
             cur.execute(f"TRUNCATE {', '.join(TABLES)} CASCADE;")
             cur.execute(SEED_FILE.read_text(encoding="utf-8"))
     yield
+
+
+@pytest.fixture(scope="session")
+def real_embedding_provider():
+    """Fase 18: instancia UNA vez por sesión de tests — cargar el modelo ONNX de fastembed
+    toma ~3s incluso con el modelo ya cacheado en disco; instanciarlo por test sería
+    innecesariamente lento sin aportar aislamiento real (el modelo es stateless)."""
+    from backend.infrastructure.fastembed_provider import FastEmbedProvider
+
+    return FastEmbedProvider()

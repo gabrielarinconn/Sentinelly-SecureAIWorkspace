@@ -5,13 +5,12 @@ import { api } from "../api/client";
 interface CopilotTurn {
   question: string;
   answer: string | null;
+  citationCount: number;
   unavailable: boolean;
 }
 
-/** Zona "panel del copiloto" del layout de 3 zonas (Fase 17). El pipeline real
- * (retrieve_ai_context -> LLM -> citas) es la Fase 18 — bloqueada por falta de una API key de
- * proveedor LLM/embeddings. Esta UI ya está lista para consumir POST /copilot/ask en cuanto
- * exista; hasta entonces degrada con gracia en vez de romperse. */
+/** Zona "panel del copiloto" del layout de 3 zonas (Fase 17). Pipeline real desde la Fase 18:
+ * pregunta -> embedding local -> retrieve_ai_context() (RLS) -> DeepSeek -> respuesta + citas. */
 export function CopilotPanel() {
   const { t } = useI18n();
   const [question, setQuestion] = useState("");
@@ -25,9 +24,9 @@ export function CopilotPanel() {
     setLoading(true);
     try {
       const result = await api.askCopilot(asked);
-      setTurns((prev) => [...prev, { question: asked, answer: result.answer, unavailable: false }]);
+      setTurns((prev) => [...prev, { question: asked, answer: result.answer, citationCount: result.citations.length, unavailable: false }]);
     } catch {
-      setTurns((prev) => [...prev, { question: asked, answer: null, unavailable: true }]);
+      setTurns((prev) => [...prev, { question: asked, answer: null, citationCount: 0, unavailable: true }]);
     } finally {
       setLoading(false);
     }
@@ -44,6 +43,11 @@ export function CopilotPanel() {
             <p className={"copilot-answer" + (turn.unavailable ? " unavailable" : "")}>
               {turn.unavailable ? t("copilot.unavailable") : turn.answer}
             </p>
+            {!turn.unavailable && turn.citationCount > 0 && (
+              <p className="copilot-citations">
+                {t("copilot.sources")} {turn.citationCount}
+              </p>
+            )}
           </div>
         ))}
         {loading && <p className="state-message">{t("copilot.thinking")}</p>}
@@ -54,8 +58,11 @@ export function CopilotPanel() {
           onChange={(e) => setQuestion(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && void ask()}
           placeholder={t("copilot.placeholder")}
+          disabled={loading}
         />
-        <button onClick={() => void ask()}>{t("copilot.send")}</button>
+        <button onClick={() => void ask()} disabled={loading}>
+          {t("copilot.send")}
+        </button>
       </div>
     </aside>
   );

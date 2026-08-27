@@ -15,9 +15,9 @@ Estado: ⬜ pendiente · 🟡 implementado/no demostrado · 🟢 demostrado
 | R06 | Keyset pagination (no OFFSET) | database/functions/0002_get_channel_messages.sql | 🟢 | tests/test_fase8_search_history.py::test_keyset_pagination_never_uses_offset_and_pages_through_all_messages |
 | R07 | Search + highlighting (ts_headline) | database/functions/0003_search_messages.sql | 🟢 | tests/test_fase8_search_history.py (highlight, RLS-scoped, query vacío rechazado) |
 | R08 | RAG autorizado en SQL | database/functions/0004_retrieve_ai_context.sql | 🟢 | tests/test_fase12_secure_retrieval.py |
-| R09 | Copilot conoce nombre/cargo | JWT claims → server-side context | ⬜ | |
-| R10 | Citas en respuestas del copiloto | prompts/, application/ask_copilot | ⬜ | |
-| R11 | Negativas explícitas | system prompt | ⬜ | |
+| R09 | Copilot conoce nombre/cargo | lookup server-side (D012), backend/application/ask_copilot.py | 🟢 | tests/test_fase18_copilot.py::test_copilot_knows_name_and_role_without_being_asked_directly + verificado en navegador |
+| R10 | Citas en respuestas del copiloto | prompts/copilot_v1.txt, backend/application/ask_copilot.py | 🟢 | tests/test_fase18_copilot.py (citations por mensaje recuperado) + verificado en navegador |
+| R11 | Negativas explícitas | prompts/copilot_v1.txt (regla 3) | 🟢 | tests/test_fase19_ai_security.py::test_no_authorized_context_produces_zero_citations_not_a_hallucination |
 | R12 | Realtime (post-COMMIT) | backend/infrastructure/realtime.py, presentation/api.py | 🟢 | tests/test_fase7_realtime.py (6 tests: broadcast, orden commit-then-publish, non-member rechazado, token inválido rechazado) |
 | R13 | Soft delete + historial | rw_message_history + database/triggers/0001_messages_audit.sql | 🟢 | tests/test_fase6_messages_audit.py (audit trail, physical DELETE blocked, deleted message immutable) |
 | R14 | i18n (ES/EN, sin strings hardcoded) | frontend/src/i18n/ | 🟢 | verificado en navegador (Playwright): detección automática de idioma, selector ES/EN, responsive desktop/mobile |

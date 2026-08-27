@@ -3,7 +3,7 @@ from typing import Optional
 
 import psycopg
 
-from backend.domain.entities import Message, SearchResult
+from backend.domain.entities import Message, RetrievedContext, SearchResult
 from backend.domain.errors import MessageAccessDeniedError
 from backend.domain.ports import MessageRepository
 
@@ -100,4 +100,23 @@ class PsycopgMessageRepository(MessageRepository):
                 id=str(id_), channel_id=str(channel_id), sender_id=str(sender_id), headline=headline, created_at=created_at, rank=rank
             )
             for id_, channel_id, sender_id, headline, created_at, rank in rows
+        ]
+
+    def retrieve_context(self, query_embedding: list[float], limit: int) -> list[RetrievedContext]:
+        with self._conn.cursor() as cur:
+            cur.execute(
+                "SELECT * FROM retrieve_ai_context(%s::vector, %s)",
+                (query_embedding, limit),
+            )
+            rows = cur.fetchall()
+        return [
+            RetrievedContext(
+                message_id=str(message_id),
+                channel_id=str(channel_id),
+                sender_id=str(sender_id),
+                content=content,
+                created_at=created_at,
+                similarity=similarity,
+            )
+            for message_id, channel_id, sender_id, content, created_at, similarity in rows
         ]

@@ -2,7 +2,16 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Optional
 
-from backend.domain.entities import Conversation, Message, RefreshTokenRecord, SearchResult, User
+from backend.domain.entities import (
+    Conversation,
+    CopilotUsage,
+    LLMCompletion,
+    Message,
+    RefreshTokenRecord,
+    RetrievedContext,
+    SearchResult,
+    User,
+)
 
 
 class UserRepository(ABC):
@@ -46,6 +55,11 @@ class MessageRepository(ABC):
     ) -> list[SearchResult]:
         """Búsqueda con highlighting, keyset pagination — search_messages()."""
 
+    @abstractmethod
+    def retrieve_context(self, query_embedding: list[float], limit: int) -> list[RetrievedContext]:
+        """retrieve_ai_context() (Fase 12) — RLS-gated, jamás "todos los mensajes filtrados
+        después" (principio central del proyecto)."""
+
 
 class RefreshTokenRepository(ABC):
     """Fase 15 — rotación + reuse detection. Solo trata con el hash del token, nunca con el
@@ -65,6 +79,16 @@ class RefreshTokenRepository(ABC):
     def revoke_all_active_for_user(self, user_id: str) -> None:
         """Respuesta a reuse detection: si un token ya revocado se vuelve a presentar, se
         asume la cadena de rotación comprometida y se revoca todo lo que siga activo."""
+
+
+class CopilotUsageRepository(ABC):
+    @abstractmethod
+    def record(self, user_id: str, prompt_tokens: int, completion_tokens: int) -> None: ...
+
+    @abstractmethod
+    def get_for_actor(self) -> CopilotUsage:
+        """get_user_copilot_usage() — igual que list_for_actor(), sin parámetro de user_id;
+        el actor viene de la transacción, no de un argumento manipulable."""
 
 
 class PasswordHasher(ABC):
@@ -93,4 +117,4 @@ class LLMProvider(ABC):
     """Interfaz mínima (D007) para el copiloto — implementada en la Fase 18."""
 
     @abstractmethod
-    def complete(self, system_prompt: str, user_prompt: str) -> str: ...
+    def complete(self, system_prompt: str, user_prompt: str) -> LLMCompletion: ...

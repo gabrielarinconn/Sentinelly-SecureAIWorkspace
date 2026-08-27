@@ -3,16 +3,17 @@ import struct
 
 from backend.domain.ports import EmbeddingProvider
 
-EMBEDDING_DIMENSIONS = 1536  # debe coincidir con rw_message_embeddings.embedding (vector(1536))
+EMBEDDING_DIMENSIONS = 384  # debe coincidir con rw_message_embeddings.embedding (vector(384))
 
 
 class LocalHashEmbeddingProvider(EmbeddingProvider):
-    """Placeholder determinístico para probar el PIPELINE (Fase 10: pending -> completed,
-    sin bloquear el INSERT) sin depender de una API key externa todavía.
+    """Placeholder determinístico usado SOLO por los tests de Fase 10 que verifican la
+    mecánica del pipeline (pending -> completed, sin bloquear el INSERT) — no la calidad
+    semántica del retrieval, eso lo cubren los tests de Fase 18 con el proveedor real
+    (FastEmbedProvider). Evita pagar el costo de cargar el modelo ONNX en tests que no lo
+    necesitan.
 
     NO es un embedding semántico real — dos textos parecidos no producen vectores parecidos.
-    Se reemplaza por el proveedor real (Fase 18, D007) una vez que exista una API key; el
-    resto del sistema no cambia porque depende de EmbeddingProvider, no de esta clase.
     """
 
     def embed(self, text: str) -> list[float]:

@@ -1,4 +1,6 @@
+import asyncio
 import os
+from contextlib import asynccontextmanager
 from typing import Optional
 
 from fastapi import Depends, FastAPI, Query, WebSocket, WebSocketDisconnect, status
@@ -6,10 +8,12 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from backend.application.ask_copilot import AskCopilotUseCase
 from backend.application.cursor import encode_cursor
 from backend.application.delete_message import DeleteMessageUseCase
 from backend.application.edit_message import EditMessageUseCase
 from backend.application.get_channel_messages import GetChannelMessagesUseCase
+from backend.application.get_copilot_usage import GetCopilotUsageUseCase
 from backend.application.get_current_user import GetCurrentUserUseCase
 from backend.application.issue_refresh_token import IssueRefreshTokenUseCase
 from backend.application.list_channels import ListChannelsUseCase
@@ -27,7 +31,11 @@ from backend.domain.errors import (
     MessageAccessDeniedError,
 )
 from backend.infrastructure.conversation_repository import PsycopgConversationRepository
+from backend.infrastructure.copilot_usage_repository import PsycopgCopilotUsageRepository
 from backend.infrastructure.db import authorized_transaction, get_app_connection
+from backend.infrastructure.deepseek_llm_provider import DeepSeekLLMProvider
+from backend.infrastructure.embedding_worker import process_pending_embeddings
+from backend.infrastructure.fastembed_provider import FastEmbedProvider
 from backend.infrastructure.jwt_service import JwtTokenService
 from backend.infrastructure.message_repository import PsycopgMessageRepository
 from backend.infrastructure.password_hasher import BcryptPasswordHasher
@@ -38,7 +46,50 @@ from backend.presentation.auth import get_current_user_id, user_id_from_ws_token
 from backend.presentation.errors import app_error, register_error_handlers
 from backend.presentation.middleware import CorrelationIdMiddleware
 
-app = FastAPI(title="Sentinelly API")
+# Singletons perezosos (Fase 18): FastEmbedProvider carga un modelo ONNX (~220MB) al
+# instanciarse — hacerlo una vez por proceso, no una vez por request. DeepSeekLLMProvider
+# también, para no leer os.environ["DEEPSEEK_API_KEY"] en cada llamada. Perezosos (no a nivel
+# de módulo) para que importar este archivo no falle en entornos donde DEEPSEEK_API_KEY
+# todavía no está seteada (ej. tests de fases anteriores que no tocan el copiloto).
+_embedding_provider: Optional[FastEmbedProvider] = None
+_llm_provider: Optional[DeepSeekLLMProvider] = None
+
+
+def _get_embedding_provider() -> FastEmbedProvider:
+    global _embedding_provider
+    if _embedding_provider is None:
+        _embedding_provider = FastEmbedProvider()
+    return _embedding_provider
+
+
+def _get_llm_provider() -> DeepSeekLLMProvider:
+    global _llm_provider
+    if _llm_provider is None:
+        _llm_provider = DeepSeekLLMProvider()
+    return _llm_provider
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Corre el worker de embeddings (Fase 10) en segundo plano mientras el proceso vive —
+    sin esto, un mensaje recién enviado nunca pasaría de 'pending' a 'completed' salvo que
+    algo externo llamara process_pending_embeddings() a mano (como hacían los tests antes de
+    esta fase)."""
+
+    async def embedding_worker_loop() -> None:
+        while True:
+            try:
+                await run_in_threadpool(process_pending_embeddings, _get_embedding_provider())
+            except Exception:
+                pass  # un fallo puntual (ej. red) no debe tumbar el worker completo
+            await asyncio.sleep(3)
+
+    task = asyncio.create_task(embedding_worker_loop())
+    yield
+    task.cancel()
+
+
+app = FastAPI(title="Sentinelly API", lifespan=lifespan)
 app.add_middleware(CorrelationIdMiddleware)
 # El origen del frontend en dev (Fase 17) — configurable porque en Docker (Fase 21) cambia.
 # allow_credentials=False: la app usa Bearer tokens, no cookies, así que no hace falta y
@@ -317,6 +368,69 @@ def get_current_user(user_id: str = Depends(get_current_user_id)) -> UserRespons
     finally:
         conn.close()
     return UserResponse(id=user.id, email=user.email, full_name=user.full_name, role_title=user.role_title)
+
+
+class AskCopilotRequest(BaseModel):
+    question: str
+
+
+class CitationResponse(BaseModel):
+    message_id: str
+    channel_id: str
+
+
+class AskCopilotResponse(BaseModel):
+    answer: str
+    citations: list[CitationResponse]
+
+
+def _ask_copilot_sync(user_id: str, question: str) -> AskCopilotResponse:
+    conn = get_app_connection()
+    try:
+        with authorized_transaction(conn, user_id):
+            use_case = AskCopilotUseCase(
+                message_repository=PsycopgMessageRepository(conn),
+                user_repository=PsycopgUserRepository(conn),
+                embedding_provider=_get_embedding_provider(),
+                llm_provider=_get_llm_provider(),
+                copilot_usage_repository=PsycopgCopilotUsageRepository(conn),
+            )
+            answer = use_case.execute(user_id, question)
+    finally:
+        conn.close()
+    return AskCopilotResponse(
+        answer=answer.answer,
+        citations=[CitationResponse(message_id=c.message_id, channel_id=c.channel_id) for c in answer.citations],
+    )
+
+
+@app.post("/copilot/ask", response_model=AskCopilotResponse)
+async def ask_copilot(body: AskCopilotRequest, user_id: str = Depends(get_current_user_id)) -> AskCopilotResponse:
+    try:
+        return await run_in_threadpool(_ask_copilot_sync, user_id, body.question)
+    except EmptySearchQueryError as exc:
+        raise app_error(422, "EMPTY_QUESTION", str(exc)) from exc
+
+
+class CopilotUsageResponse(BaseModel):
+    total_questions: int
+    total_prompt_tokens: int
+    total_completion_tokens: int
+
+
+@app.get("/copilot/usage", response_model=CopilotUsageResponse)
+def get_copilot_usage(user_id: str = Depends(get_current_user_id)) -> CopilotUsageResponse:
+    conn = get_app_connection()
+    try:
+        with authorized_transaction(conn, user_id):
+            usage = GetCopilotUsageUseCase(PsycopgCopilotUsageRepository(conn)).execute()
+    finally:
+        conn.close()
+    return CopilotUsageResponse(
+        total_questions=usage.total_questions,
+        total_prompt_tokens=usage.total_prompt_tokens,
+        total_completion_tokens=usage.total_completion_tokens,
+    )
 
 
 def _is_member_sync(channel_id: str, user_id: str) -> bool:

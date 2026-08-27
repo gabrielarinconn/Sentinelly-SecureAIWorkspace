@@ -127,14 +127,13 @@ export const api = {
   deleteMessage: (messageId: string) => request<Message>(`/messages/${messageId}`, { method: "DELETE" }),
   searchMessages: (query: string, cursor?: string) =>
     request<SearchPage>("/messages/search", { params: { q: query, cursor, limit: 20 } }),
-  // Fase 18 (bloqueada por falta de API key de un proveedor LLM al momento de escribir esto)
-  // — el endpoint todavía no existe en el backend; CopilotPanel maneja el error con
-  // gracia (t("copilot.unavailable")) hasta que se implemente.
   askCopilot: (question: string) =>
     request<{ answer: string; citations: { message_id: string; channel_id: string }[] }>("/copilot/ask", {
       method: "POST",
       body: { question },
     }),
+  getCopilotUsage: () =>
+    request<{ total_questions: number; total_prompt_tokens: number; total_completion_tokens: number }>("/copilot/usage"),
 };
 
 export function wsUrlForChannel(channelId: string): string {

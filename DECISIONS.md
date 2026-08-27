@@ -283,6 +283,20 @@ mantener sincronizada, sin necesidad real).
 **Trade-off:** cualquier cambio a "qué significa ser miembro de un canal" ahora vive en un
 solo lugar (la función) en vez de estar duplicado en 3 policies — ventaja, no solo costo.
 
+**Cut #3 — Frontend: tokens en `localStorage`, sin router, sin librería de i18n.**
+**Context:** Fase 17 (frontend) podía tirar hacia `react-router` (no hay más de una "página"
+real — login vs. app autenticada, resuelto con un `if` sobre el estado de auth), una librería
+de i18n como `i18next` (con 2 idiomas y ~25 strings, un `Record` + `Context` propio alcanza),
+o guardar los tokens en cookies `httpOnly` (requiere que el backend las emita, CSRF, y no es
+lo que expone la API que ya se construyó — Bearer token en `Authorization`).
+**Why:** cada una de esas herramientas resuelve un problema que este alcance no tiene todavía
+— agregarlas ahora sería la abstracción sin necesidad concreta que el STOP RULE prohíbe.
+**Trade-off aceptado conscientemente:** `localStorage` es legible por cualquier script que
+logre inyectarse en la página (XSS) — el mismo trade-off que casi cualquier SPA con Bearer
+tokens acepta sin backend con sesiones de cookie. Mitigado en parte por: el `SearchHighlight`
+nunca usa `dangerouslySetInnerHTML` sobre contenido de mensajes (dato no confiable, R10), y
+los access tokens viven poco (`JWT_ACCESS_TOKEN_EXPIRES_MINUTES=15`).
+
 ## D012 — Origen de nombre/cargo del usuario en el copiloto (JWT claims vs lookup server-side)
 
 _Pending._

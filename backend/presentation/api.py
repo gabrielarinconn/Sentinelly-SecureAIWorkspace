@@ -1,7 +1,9 @@
+import os
 from typing import Optional
 
 from fastapi import Depends, FastAPI, Query, WebSocket, WebSocketDisconnect, status
 from fastapi.concurrency import run_in_threadpool
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from backend.application.cursor import encode_cursor
@@ -38,6 +40,17 @@ from backend.presentation.middleware import CorrelationIdMiddleware
 
 app = FastAPI(title="Sentinelly API")
 app.add_middleware(CorrelationIdMiddleware)
+# El origen del frontend en dev (Fase 17) — configurable porque en Docker (Fase 21) cambia.
+# allow_credentials=False: la app usa Bearer tokens, no cookies, así que no hace falta y
+# evita la combinación (con allow_origins abierto) que los navegadores rechazan.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:5173").split(","),
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["X-Correlation-ID"],
+)
 register_error_handlers(app)
 
 

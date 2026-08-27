@@ -8,8 +8,8 @@ Estado: ⬜ pendiente · 🟡 implementado/no demostrado · 🟢 demostrado
 | ID  | Requisito | Implementación | Estado | Evidencia |
 |-----|-----------|-----------------|--------|-----------|
 | R01 | Modelo 3FN | docs/erd/normalization.md, ERD.pdf, database/migrations/ | 🟡 | DDL corre desde cero, constraints verificadas manualmente (Fase 3); falta test automatizado (Fase 20) |
-| R02 | RLS activo (canales/mensajes) | database/policies/ | ⬜ | |
-| R03 | Rol app sin BYPASSRLS | database/migrations/ | ⬜ | |
+| R02 | RLS activo (canales/mensajes) | database/policies/0001_channels_messages_rls.sql | 🟢 | tests/test_fase4_rls_jwt.py (member/non-member/fail-closed, 4 tests) |
+| R03 | Rol app sin BYPASSRLS | database/migrations/0009_app_role.sql | 🟢 | tests/test_fase4_rls_jwt.py::test_app_role_has_no_superuser_or_bypassrls |
 | R04 | Vista de conversaciones (security_invoker) | database/views/ | ⬜ | |
 | R05 | 2 procedimientos (consulta/edición-eliminación usuarios) | database/procedures/ | ⬜ | |
 | R06 | Keyset pagination (no OFFSET) | get_channel_messages() | ⬜ | |

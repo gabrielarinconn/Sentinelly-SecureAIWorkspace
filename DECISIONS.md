@@ -29,11 +29,54 @@ como cursor compuesto, no solo `id`.
 
 ## D002 — PostgreSQL como security boundary
 
-_Pending._
+**Decision:** existen dos roles de PostgreSQL distintos y con propósitos que nunca se
+mezclan: `sentinel_app` (superusuario del contenedor, solo para migrar/seedear/inspeccionar
+vía MCP) y `rw_app` (sin `SUPERUSER`, sin `BYPASSRLS`, es el único rol que el backend usa en
+tiempo de ejecución). `RW_APP_DATABASE_URL` ≠ `DATABASE_URL`.
+
+**Context:** el principio central del proyecto es "authorization happens before generation" —
+PostgreSQL decide qué contexto es visible, no el backend ni el LLM.
+
+**Why:** si el backend corriera con el mismo rol usado para migrar (superusuario), RLS sería
+cosmético — un bug en el backend, o el LLM manipulando parámetros, podría leer cualquier fila
+sin que ninguna política lo impida. Separar los roles hace que la autorización sea real incluso
+si la capa de aplicación falla por completo (R09).
+
+**Alternatives:** un solo rol con `BYPASSRLS` y "confiar" en que el backend siempre filtra en
+Python (descartado explícitamente por el plan — es exactamente el antipatrón que el principio
+central prohíbe: `all messages → vector search → filter permissions in Python`).
+
+**Trade-off:** dos connection strings que mantener sincronizadas (`.env`), y cualquier
+operación administrativa nueva (agregar una tabla, un índice) requiere el rol admin — el
+backend nunca puede auto-migrarse ni auto-otorgarse permisos, lo cual es intencional.
 
 ## D003 — RLS strategy
 
-_Pending._
+**Decision:** el actor se fija por transacción con `SELECT set_config('app.current_user_id',
+'<uuid>', true)` (equivalente parametrizable de `SET LOCAL`), y las políticas usan
+`current_setting('app.current_user_id', true)` con el flag `missing_ok=true` — si nunca se
+fija, la comparación da `NULL` y la política deniega (fail-closed), no lanza error.
+
+**Context:** `psycopg` (como la mayoría de drivers) no permite parámetros bindeados dentro de
+`SET`/`SET LOCAL` — es una limitación del protocolo, no del driver. Se necesitaba una forma
+parametrizada de fijar el actor sin concatenar el UUID como texto en el SQL (eso sería
+reintroducir el riesgo de inyección que las queries parametrizadas evitan en todo lo demás).
+
+**Why:** `set_config(name, value, is_local)` es una función normal — acepta un parámetro
+bindeado (`%s`) igual que cualquier otra consulta, así que el UUID nunca se concatena en el
+texto del SQL. `is_local = true` reproduce el comportamiento de `SET LOCAL`: el valor solo
+vive dentro de la transacción actual y desaparece al hacer COMMIT/ROLLBACK — no puede "filtrar"
+a la siguiente request si la conexión se reutiliza desde un pool.
+
+**Alternatives:** interpolar el UUID directamente en un `SET LOCAL app.current_user_id = '...'`
+con f-string (descartado — es concatenación de SQL, prohibida explícitamente); una función
+`SECURITY DEFINER` que reciba el JWT completo y lo valide dentro de Postgres (más complejo,
+duplica la verificación de firma que ya hace el backend con la misma librería que emite el
+token).
+
+**Trade-off:** cada transacción autorizada paga el costo de una llamada extra a
+`set_config()` antes de la query real — irrelevante en la práctica frente al costo de la
+propia conexión/red.
 
 ## D004 — Soft delete
 

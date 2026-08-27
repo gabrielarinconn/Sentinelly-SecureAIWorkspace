@@ -147,7 +147,34 @@ _Pending._
 
 ## D011 — Scope cuts
 
-_Pending._
+**Cut #1 — Sin endpoints de gestión de canales (crear canal, agregar/quitar miembros).**
+**Context:** Fase 5 (ACL de canales) tentaba a construir casos de uso completos de
+administración de canal ("owner administra canal y miembros").
+**Why:** la lista de endpoints de la Fase 16 (`POST /auth/login`, `GET /channels`,
+`GET/POST /channels/{id}/messages`, `PATCH/DELETE /messages/{id}`, `GET /messages/search`,
+`POST/GET /copilot/*`) no incluye ningún `POST/PATCH /channels` ni gestión de miembros — el
+escenario de demo se resuelve completo con el seed (Fase 3). Construir esos endpoints sería
+una abstracción sin caso de uso real que la consuma (regla dura del proyecto).
+**Alternatives:** implementarlos "por si acaso" para verse más completo — descartado, va en
+contra del STOP RULE ("no introducir abstracciones sin necesidad concreta ya presente").
+**Trade-off:** `rw_channel_members` no tiene policies de INSERT/UPDATE/DELETE (Fase 5); si en
+algún momento se agrega un endpoint real de gestión de canal, esa policy se escribe entonces,
+respaldada por el caso de uso que la necesite.
+
+**Cut #2 — Función `rw_is_channel_member()` con `SECURITY DEFINER` (justificación, R17).**
+**Context:** una policy de `rw_channel_members` que hace `SELECT` sobre la propia
+`rw_channel_members` dispara "infinite recursion detected in policy" en PostgreSQL — la
+subconsulta reevalúa la misma policy que la está evaluando a ella.
+**Why:** `SECURITY DEFINER` hace que la función corra con los privilegios de quien la creó
+(el rol admin), evitando que su `SELECT` interno vuelva a pasar por RLS — rompe la recursión.
+No elude ninguna policy de negocio: solo expone un booleano (`¿user_id es miembro de
+channel_id?`), nunca filas, y su `EXECUTE` está revocado de `PUBLIC` y otorgado solo a
+`rw_app` (`database/functions/0001_is_channel_member.sql`).
+**Alternatives:** duplicar la condición de membresía como una vista materializada o
+desnormalizar el flag en cada fila (más complejidad y una fuente de verdad adicional que
+mantener sincronizada, sin necesidad real).
+**Trade-off:** cualquier cambio a "qué significa ser miembro de un canal" ahora vive en un
+solo lugar (la función) en vez de estar duplicado en 3 policies — ventaja, no solo costo.
 
 ## D012 — Origen de nombre/cargo del usuario en el copiloto (JWT claims vs lookup server-side)
 
